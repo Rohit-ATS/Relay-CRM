@@ -17,6 +17,7 @@ from app.api.routes_sequence import router as sequence_router
 from app.api.routes_interactions import router as interactions_router
 from app.api.routes_demo import router as demo_router
 from app.api.routes_qa import router as qa_router
+from app.api.routes_documentation import router as documentation_router
 
 
 @asynccontextmanager
@@ -61,6 +62,7 @@ app.include_router(sequence_router)
 app.include_router(interactions_router)
 app.include_router(demo_router)
 app.include_router(qa_router)
+app.include_router(documentation_router)
 
 
 @app.get("/", tags=["Health"])

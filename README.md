@@ -73,6 +73,11 @@ Relay turns lead lists into persistent customer records, tailored outreach plans
 
 ---
 
+### API Documentation
+- Next.js documentation UI: `/docs`.
+- FastAPI interactive reference: `/docs` on the API service (also available through `/documentation` and `/introduction`).
+- The documentation uses HTTP request examples rather than claiming unsupported official SDKs. TypeScript, Python, and cURL are the recommended starting points; any language with an HTTP client can call the API.
+
 ## 💻 Local Setup
 
 ### Running the Backend API
