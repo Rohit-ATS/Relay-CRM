@@ -62,6 +62,7 @@ class ClientRegistration(BaseModel):
     redirect_uris: list[str] = Field(min_length=1, max_length=10)
     grant_types: list[str] = ["authorization_code"]
     response_types: list[str] = ["code"]
+    scope: str | None = None
     token_endpoint_auth_method: str = "none"
 
 
@@ -76,6 +77,7 @@ async def register_client(payload: ClientRegistration, db: AsyncSession = Depend
         if parsed.scheme not in {"https", "http"} or not parsed.netloc:
             raise HTTPException(status_code=400, detail="redirect_uris must be absolute HTTP(S) URLs")
     client_id = random_id("relay_client")
+    client_id_issued_at = int(datetime.now(timezone.utc).timestamp())
     db.add(OAuthClient(
         client_id=client_id,
         client_name=payload.client_name,
@@ -85,10 +87,12 @@ async def register_client(payload: ClientRegistration, db: AsyncSession = Depend
     await db.commit()
     return {
         "client_id": client_id,
+        "client_id_issued_at": client_id_issued_at,
         "client_name": payload.client_name,
         "redirect_uris": payload.redirect_uris,
         "grant_types": ["authorization_code"],
         "response_types": ["code"],
+        "scope": payload.scope or "relay",
         "token_endpoint_auth_method": "none",
     }
 
