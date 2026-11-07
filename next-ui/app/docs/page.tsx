@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import "./docs.css";
 
@@ -16,6 +16,30 @@ export default function DocsPage() {
   const [liveTestRunning, setLiveTestRunning] = useState(false);
   const [liveTestResponse, setLiveTestResponse] = useState<string | null>(null);
   const [liveTestStatus, setLiveTestStatus] = useState<number | null>(null);
+  const [activeSection, setActiveSection] = useState("introduction");
+
+  useEffect(() => {
+    const sectionIds = ["introduction", "handles", "sdks", "mcp", "playground"];
+    const sections = sectionIds
+      .map((id) => document.getElementById(id))
+      .filter((section): section is HTMLElement => section !== null);
+
+    const updateActiveSection = () => {
+      const activationLine = 130;
+      const currentSection = sections.reduce((current, section) => {
+        return section.getBoundingClientRect().top <= activationLine ? section : current;
+      }, sections[0]);
+      if (currentSection) setActiveSection(currentSection.id);
+    };
+
+    updateActiveSection();
+    window.addEventListener("scroll", updateActiveSection, { passive: true });
+    window.addEventListener("resize", updateActiveSection);
+    return () => {
+      window.removeEventListener("scroll", updateActiveSection);
+      window.removeEventListener("resize", updateActiveSection);
+    };
+  }, []);
 
   const showToast = (msg: string) => {
     setCopiedToast(msg);
@@ -557,11 +581,11 @@ curl "${API_BASE}/api/qa/verify-handoff"`,
           <aside className="docs-side-rail docs-side-rail-left" aria-label="Documentation sections">
             <div className="docs-rail-label">ON THIS PAGE</div>
             <nav className="docs-section-nav">
-              <a href="#introduction" className="active">Introduction</a>
-              <a href="#handles">What Relay handles</a>
-              <a href="#sdks">Request examples</a>
-              <a href="#mcp">MCP integration</a>
-              <a href="#playground">Live API test</a>
+              <a href="#introduction" className={activeSection === "introduction" ? "active" : ""}>Introduction</a>
+              <a href="#handles" className={activeSection === "handles" ? "active" : ""}>What Relay handles</a>
+              <a href="#sdks" className={activeSection === "sdks" ? "active" : ""}>Request examples</a>
+              <a href="#mcp" className={activeSection === "mcp" ? "active" : ""}>MCP integration</a>
+              <a href="#playground" className={activeSection === "playground" ? "active" : ""}>Live API test</a>
             </nav>
             <div className="docs-rail-rule" />
             <a className="docs-rail-link" href={`${API_BASE}/openapi.json`} target="_blank" rel="noreferrer">
