@@ -23,9 +23,11 @@ Relay turns lead lists into persistent customer records, tailored outreach plans
 ## 🏗️ Repository Architecture
 
 - **Frontend (`src/`):** TypeScript + Vite UI with shared contracts ([`src/shared/contracts.ts`](src/shared/contracts.ts)).
-- **Backend API (`app/`):** FastAPI + SQLAlchemy (Async) + Pydantic v2 supporting both snake_case and camelCase contracts.
-- **Tests (`tests/`):** Pytest test suite testing all CRM endpoints, AI sequences, inbound interactions, and Wren workflows.
-- **Render Deployment (`render.yaml`, `Dockerfile`, `Procfile`):** Ready for one-click deployment as a Render Web Service.
+- **Backend API (`backend/`):** FastAPI + SQLAlchemy (Async) + Pydantic v2 supporting both snake_case and camelCase contracts.
+  - `backend/app/` — Application routers, DB models, schemas, and AI services.
+  - `backend/tests/` — Pytest test suite covering all CRM operations, sequences, and Wren QA.
+  - `backend/sample_data/` — Synthetic B2B outbound lead fixtures.
+- **Render Deployment (`render.yaml`, `backend/Dockerfile`, `backend/Procfile`):** Ready for one-click deployment as a Render Web Service.
 
 ---
 
@@ -75,6 +77,9 @@ Relay turns lead lists into persistent customer records, tailored outreach plans
 
 ### Running the Backend API
 ```bash
+# Navigate to backend
+cd backend
+
 # Create virtual environment and install dependencies
 uv venv .venv
 source .venv/bin/activate
@@ -87,6 +92,7 @@ Swagger API docs available at: `http://localhost:8000/docs`
 
 ### Running the Test Suite
 ```bash
+cd backend
 source .venv/bin/activate
 pytest -v
 ```
