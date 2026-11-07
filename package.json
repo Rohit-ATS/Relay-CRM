@@ -4,6 +4,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
+    "server": "tsx server/index.ts",
     "build": "tsc --noEmit && vite build",
     "preview": "vite preview"
   },
@@ -11,7 +12,9 @@
     "zod": "^3.25.0"
   },
   "devDependencies": {
+    "@types/node": "^24.10.0",
     "typescript": "^7.0.2",
-    "vite": "^7.2.2"
+    "vite": "^7.2.2",
+    "tsx": "^4.20.6"
   }
 }
