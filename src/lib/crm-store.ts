@@ -37,7 +37,7 @@ export function loadData(): RelayData {
   } catch { /* Recover from stale or malformed local demo data. */ }
   const initial = seedData(); saveData(initial); return initial;
 }
-export function saveData(data: RelayData): void { localStorage.setItem(storageKey, JSON.stringify(data)); }
+export function saveData(data: RelayData, notifyCloud = true): void { localStorage.setItem(storageKey, JSON.stringify(data)); if (notifyCloud && typeof window !== "undefined") window.dispatchEvent(new CustomEvent("relay:data-saved", { detail: data })); }
 export function importRows(data: RelayData, rows: CsvImportRow[]): RelayData {
   const importedAt = now();
   rows.forEach((row) => {

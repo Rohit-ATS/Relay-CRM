@@ -1,6 +1,7 @@
 import "./styles.css";
 import "../next-ui/app/landing.css";
-import { renderWorkspace } from "./workspace";
+import { refreshWorkspaceFromStorage, renderWorkspace } from "./workspace";
+import { initializeSupabaseWorkspace } from "./lib/supabase-sync";
 
 const app = document.querySelector<HTMLDivElement>("#app")!;
 function renderLanding(): void {
@@ -19,4 +20,9 @@ function renderLanding(): void {
 }
 
 if (window.location.pathname === "/landing") renderLanding();
-else renderWorkspace(app);
+else {
+  window.addEventListener("relay:cloud-status", () => { if (window.location.pathname === "/settings") renderWorkspace(app); });
+  window.addEventListener("relay:cloud-data-updated", () => refreshWorkspaceFromStorage(app));
+  renderWorkspace(app);
+  void initializeSupabaseWorkspace().then(() => renderWorkspace(app));
+}

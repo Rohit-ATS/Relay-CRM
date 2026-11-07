@@ -165,17 +165,18 @@ For the demo: import sample leads from **Accounts**, inspect/approve plans in **
 
 The screenshot-inspired marketing page is available at `/landing`. The optional Next.js app remains available through `npm run dev:full` or `npm run dev:next`.
 
-## Gemini + Supabase integration groundwork
+## Gemini + Supabase
 
 The existing landing page, Vite workspace, FastAPI API, SQLite demo mode, and deterministic fixtures remain available. The TypeScript API on port `8787` now uses the official `@google/genai` SDK when `GEMINI_API_KEY` is configured; otherwise each agent returns a labeled deterministic fixture. Server prompts live in `server/agents/prompts/`, and output is validated with Zod before returning. The endpoints are `/api/sequence`, `/api/agents/research`, and `/api/agents/steward` through the Vite `/api` proxy. These agents propose data only; they do not send outreach or commit CRM mutations.
 
-The Supabase migration at [`supabase/migrations/202611070001_relay_core.sql`](supabase/migrations/202611070001_relay_core.sql) defines workspace-owned CRM, workflow, approval, and agent-run tables. RLS requires Supabase Auth membership; new Auth users receive a private workspace. Realtime publication includes `agent_runs`, `activities`, `accounts`, `deals`, and `handoff_tasks`. Browser subscriptions in `src/lib/supabase-realtime.ts` require an authenticated Supabase session and workspace ID. The server helper uses the caller's JWT and publishable key, so queries remain subject to RLS. `SUPABASE_SECRET_KEY` is server-only and is not used by browser code.
+The Supabase migration at [`supabase/migrations/202611070001_relay_core.sql`](supabase/migrations/202611070001_relay_core.sql) defines workspace-owned CRM, workflow, approval, and agent-run tables. RLS requires Supabase Auth membership; new Auth users receive a private workspace. Realtime publication includes `agent_runs`, `activities`, `accounts`, `deals`, and `handoff_tasks`. The Vite browser client uses the publishable key plus the signed-in user's Auth session, so database access remains subject to RLS. `SUPABASE_SECRET_KEY` is not used by the app and must never be exposed in browser code.
 
 To configure an actual Supabase project:
 
-1. Copy the variable names from `.env.example`; set `GEMINI_API_KEY`, `GEMINI_MODEL`, `SUPABASE_URL`, and `SUPABASE_PUBLISHABLE_KEY`. Add the Supabase URL and publishable key with the `VITE_` prefix for the browser client. Never set a service/secret key with a `VITE_` prefix.
-2. Link the Supabase CLI to the project, then apply the checked-in schema: `npx supabase link --project-ref YOUR_PROJECT_REF` followed by `npx supabase db push`.
-3. Enable email authentication in Supabase Auth. The migration creates a private workspace and owner membership when an Auth user is created.
-4. Start the existing Vite app and API with `npm run dev` and `npm run server` in separate terminals. The app remains usable in local demo mode without credentials.
+1. Put the project URL and publishable key in the repo-root `.env.local` as `VITE_SUPABASE_URL` and `VITE_SUPABASE_PUBLISHABLE_KEY`. Restart Vite after changing the file. Set `GEMINI_API_KEY` separately if you want live Gemini output; otherwise labeled fixtures are used.
+2. Apply the checked-in SQL migration with `npx supabase link --project-ref YOUR_PROJECT_REF` and `npx supabase db push --linked`.
+3. In Supabase **Authentication → URL Configuration**, set the local Site URL to `http://localhost:5173` and add `http://localhost:5173/settings` to Redirect URLs. Email magic-link sign-in is initiated from Relay **Settings**. New users get a private workspace from the migration trigger.
+4. Start `npm run dev`. In a second terminal, load the server-only settings and start the Gemini API: `set -a; source .env.local; set +a; npm run server`.
+5. In Relay **Settings**, send yourself a sign-in link. If the Supabase workspace is empty, click **Sync local CRM records to Supabase** to initialize it. This explicit action copies the current browser records once; subsequent changes sync automatically. If cloud records already exist, they load into the app. Settings → Reset demo data resets the connected workspace too.
 
-The Supabase migration and authenticated Realtime client are foundations for the live data path; the current CRM screens still use the existing browser-local demo store and FastAPI persistence. Applying the migration alone does not switch those screens to Supabase. Connect Auth and the typed Supabase data operations before treating Supabase as the active CRM database. No Supabase or Gemini credentials are checked into this repository.
+Without Supabase browser credentials or an Auth session, the landing page and local demo workspace continue to work in browser storage. No secrets are checked into this repository.
