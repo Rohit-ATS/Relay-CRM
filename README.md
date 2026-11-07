@@ -102,7 +102,7 @@ MCP_PORT=8000 \
 RELAY_API_BASE_URL=https://relay-crm-api.onrender.com \
   .venv/bin/python backend/app/mcp_server.py
 ```
-The MCP endpoint is then `https://your-mcp-host.example.com/mcp`. Use `MCP_TRANSPORT=sse` only for clients that do not support Streamable HTTP.
+The MCP endpoint is then `https://your-mcp-host.example.com/mcp/`. The existing Render service also exposes the legacy SSE transport at `/mcp-legacy/sse`; use it only for clients that do not support Streamable HTTP.
 
 For Cursor, use a local stdio configuration:
 ```json
@@ -119,7 +119,9 @@ For Cursor, use a local stdio configuration:
 }
 ```
 
-`RELAY_API_TOKEN` is forwarded as a Bearer token when configured. The current API has no token middleware, so keep the MCP process private and do not expose the network transport until API authentication is enabled. The adapter intentionally keeps proposal and mutation steps separate: agents can analyze, but approvals and CRM changes require an explicit user action.
+`MCP_AUTH_TOKEN` protects the remote MCP mount with `Authorization: Bearer <token>`. Generate it locally with `openssl rand -hex 32`, then add it as a secret environment variable in Render. The current public CRM API remains unchanged; do not expose the MCP URL without this token. The adapter intentionally keeps proposal and mutation steps separate: agents can analyze, but approvals and CRM changes require an explicit user action.
+
+If you use a custom domain, add its hostname to `MCP_ALLOWED_HOSTS` in Render. The default allowlist includes the deployed Render hostname and local development hosts.
 
 ## 💻 Local Setup
 

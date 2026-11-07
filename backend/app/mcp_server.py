@@ -10,6 +10,7 @@ from typing import Any
 
 import httpx
 from mcp.server.fastmcp import FastMCP
+from mcp.server.transport_security import TransportSecuritySettings
 
 
 API_BASE_URL = os.getenv("RELAY_API_BASE_URL", "http://localhost:8787").rstrip("/")
@@ -17,6 +18,14 @@ API_TOKEN = os.getenv("RELAY_API_TOKEN")
 TRANSPORT = os.getenv("MCP_TRANSPORT", "stdio")
 MCP_HOST = os.getenv("MCP_HOST", "127.0.0.1")
 MCP_PORT = int(os.getenv("MCP_PORT", "8000"))
+MCP_ALLOWED_HOSTS = [
+    host.strip()
+    for host in os.getenv(
+        "MCP_ALLOWED_HOSTS",
+        "relay-crm-api.onrender.com,localhost,localhost:*,127.0.0.1,127.0.0.1:*",
+    ).split(",")
+    if host.strip()
+]
 
 mcp = FastMCP(
     "Relay CRM",
@@ -28,8 +37,9 @@ mcp = FastMCP(
     ),
     host=MCP_HOST,
     port=MCP_PORT,
-    streamable_http_path="/mcp",
+    streamable_http_path="/",
     stateless_http=True,
+    transport_security=TransportSecuritySettings(allowed_hosts=MCP_ALLOWED_HOSTS),
 )
 
 
