@@ -15,86 +15,155 @@ from app.schemas.ai import (
     SequenceApprovalRequest,
     SequenceRejectRequest
 )
-from app.services.crm_service import crm_service
+from app.services.crm_service import crm_service, utc_now
 from app.services.ai_service import ai_service
 
 router = APIRouter(prefix="/api/sequence", tags=["Sequence & Approval"])
 
 
-@router.post("", response_model=SequenceRead, status_code=status.HTTP_201_CREATED)
+@router.post("", status_code=status.HTTP_201_CREATED)
 async def generate_sequence(
     payload: SequenceGenerateRequest,
     db: AsyncSession = Depends(get_db)
 ):
     """
     Generate an editable 3-step email outreach sequence tailored to account & contact context.
-    Saved in CRM with status='pending'. Does NOT send messages externally.
+    Saved in CRM with status='pending'. Supports both DB ID lookups and direct payload inputs from UI.
     """
-    account = await crm_service.get_account(db, payload.account_id)
-    if not account:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Account not found")
+    account = None
+    if payload.account_id:
+        account = await crm_service.get_account(db, payload.account_id)
+
+    # Fallback to direct account payload from UI if not in DB
+    company_name = "Target Company"
+    domain = None
+    source_notes = payload.notes
+    account_id = payload.account_id
+
+    if account:
+        company_name = account.company_name
+        domain = account.domain
+        source_notes = payload.notes or account.source_notes
+        account_id = account.id
+    elif payload.account and isinstance(payload.account, dict):
+        company_name = payload.account.get("companyName") or payload.account.get("company_name") or "Target Company"
+        domain = payload.account.get("domain")
+        source_notes = payload.notes or payload.account.get("summary")
+        account_id = payload.account.get("id") or "acct_transient"
 
     # Pick contact
-    contact: Optional[Contact] = None
-    if payload.contact_id:
-        contact = await crm_service.get_contact(db, payload.contact_id)
-    elif account.contacts:
-        contact = account.contacts[0]
+    contact_name = "Executive Lead"
+    contact_title = None
+    contact_id = payload.contact_id
 
-    contact_name = contact.name if contact else "Executive Lead"
-    contact_title = contact.title if contact else None
+    if account and account.contacts:
+        contact = account.contacts[0]
+        contact_name = contact.name
+        contact_title = contact.title
+        contact_id = contact.id
+    elif payload.contact and isinstance(payload.contact, dict):
+        contact_name = payload.contact.get("name") or "Executive Lead"
+        contact_title = payload.contact.get("title")
+        contact_id = payload.contact.get("id")
 
     # Call AI service (with deterministic fallback)
     generated = await ai_service.generate_sequence(
-        company_name=account.company_name,
+        company_name=company_name,
         contact_name=contact_name,
         contact_title=contact_title,
-        domain=account.domain,
-        source_notes=account.source_notes,
-        brief=account.brief,
+        domain=domain,
+        source_notes=source_notes,
         custom_angle=payload.custom_angle
     )
 
-    # Save to CRM database
-    sequence = Sequence(
-        account_id=account.id,
-        status="pending",
-        rationale=generated.rationale
-    )
-    db.add(sequence)
-    await db.flush()
-
-    for step_data in generated.steps:
-        step = SequenceStep(
-            sequence_id=sequence.id,
-            step_number=step_data.step_number,
-            channel="email",
-            delay_days=step_data.delay_days,
-            subject=step_data.subject,
-            body=step_data.body,
-            rationale=step_data.rationale,
-            status="draft"
+    # If account exists in database, persist sequence
+    sequence_id = "seq_" + str(account_id)
+    steps_list = []
+    
+    if account:
+        sequence = Sequence(
+            account_id=account.id,
+            status="pending",
+            rationale=generated.rationale
         )
-        db.add(step)
+        db.add(sequence)
+        await db.flush()
+        sequence_id = sequence.id
 
-    # Audit Activity
-    activity = Activity(
-        account_id=account.id,
-        contact_id=contact.id if contact else None,
-        type="sequence_generated",
-        summary=f"AI generated 3-step outreach sequence for {contact_name} at {account.company_name}.",
-        source="ai",
-        metadata_json={
-            "sequence_id": sequence.id,
-            "rationale": generated.rationale,
-            "steps_count": len(generated.steps)
+        for step_data in generated.steps:
+            step = SequenceStep(
+                sequence_id=sequence.id,
+                step_number=step_data.step_number,
+                channel="email",
+                delay_days=step_data.delay_days,
+                subject=step_data.subject,
+                body=step_data.body,
+                rationale=step_data.rationale,
+                status="draft"
+            )
+            db.add(step)
+            steps_list.append(step)
+
+        # Audit Activity
+        activity = Activity(
+            account_id=account.id,
+            contact_id=contact_id if contact_id != "acct_transient" else None,
+            type="sequence_generated",
+            summary=f"AI generated 3-step outreach sequence for {contact_name} at {company_name}.",
+            source="ai",
+            metadata_json={
+                "sequence_id": sequence.id,
+                "rationale": generated.rationale,
+                "steps_count": len(generated.steps)
+            }
+        )
+        db.add(activity)
+        await db.commit()
+        await db.refresh(sequence)
+
+    # Format output matching both SequenceRead and GeneratedSequenceResult
+    facts = [
+        {"key": "company_name", "value": company_name, "source": {"type": "user", "label": "supplied account record", "confidence": 1.0}},
+        {"key": "contact_name", "value": contact_name, "source": {"type": "user", "label": "supplied contact record", "confidence": 1.0}},
+    ]
+    if domain:
+        facts.append({"key": "domain", "value": domain, "source": {"type": "user", "label": "supplied domain", "confidence": 1.0}})
+    if source_notes:
+        facts.append({"key": "notes", "value": source_notes[:100], "source": {"type": "user", "label": "supplied notes", "confidence": 1.0}})
+
+    steps_source = steps_list if steps_list else generated.steps
+    steps_response = [
+        {
+            "id": getattr(s, "id", f"step_{idx+1}"),
+            "sequence_id": sequence_id,
+            "step_number": getattr(s, "step_number", idx + 1),
+            "delay_days": getattr(s, "delay_days", 0),
+            "delayDays": getattr(s, "delay_days", 0),
+            "channel": "email",
+            "subject": s.subject,
+            "body": s.body,
+            "rationale": s.rationale,
+            "status": getattr(s, "status", "draft")
         }
-    )
-    db.add(activity)
+        for idx, s in enumerate(steps_source)
+    ]
 
-    await db.commit()
-    await db.refresh(sequence)
-    return sequence
+    return {
+        "id": sequence_id,
+        "account_id": account_id,
+        "accountId": account_id,
+        "status": "pending",
+        "rationale": generated.rationale,
+        "mode": "provider" if ai_service.anthropic_key or ai_service.openai_key else "demo_fixture",
+        "brief": f"A tailored, email-first outreach plan for {contact_name} at {company_name}.",
+        "facts": facts,
+        "assumptions": [
+            "Recipient is relevant to the supplied CRM context",
+            "Human will review and approve drafts before delivery"
+        ],
+        "steps": steps_response,
+        "created_at": utc_now().isoformat()
+    }
 
 
 @router.get("/{sequence_id}", response_model=SequenceRead)

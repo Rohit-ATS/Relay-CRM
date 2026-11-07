@@ -1,5 +1,5 @@
-from typing import List, Optional, Literal
-from pydantic import BaseModel, Field
+from typing import List, Optional, Literal, Dict, Any
+from pydantic import BaseModel, Field, model_validator
 from app.schemas.crm import SequenceStepRead
 
 
@@ -38,9 +38,32 @@ class SequenceGenerated(BaseModel):
 
 
 class SequenceGenerateRequest(BaseModel):
-    account_id: str
+    account_id: Optional[str] = None
+    accountId: Optional[str] = None
     contact_id: Optional[str] = None
+    contactId: Optional[str] = None
     custom_angle: Optional[str] = None
+    account: Optional[Dict[str, Any]] = None
+    contact: Optional[Dict[str, Any]] = None
+    notes: Optional[str] = None
+
+    @model_validator(mode="before")
+    @classmethod
+    def reconcile_payload(cls, data: Any):
+        if isinstance(data, dict):
+            if "accountId" in data and not data.get("account_id"):
+                data["account_id"] = data["accountId"]
+            if "contactId" in data and not data.get("contact_id"):
+                data["contact_id"] = data["contactId"]
+            if "account" in data and isinstance(data["account"], dict):
+                acc = data["account"]
+                if not data.get("account_id") and acc.get("id"):
+                    data["account_id"] = acc["id"]
+            if "contact" in data and isinstance(data["contact"], dict):
+                ct = data["contact"]
+                if not data.get("contact_id") and ct.get("id"):
+                    data["contact_id"] = ct["id"]
+        return data
 
 
 class SequenceApprovalRequest(BaseModel):
