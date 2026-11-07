@@ -23,10 +23,11 @@ def origin(request: Request) -> str:
 
 
 def resource_url(request: Request) -> str:
-    return f"{origin(request)}/mcp"
+    return f"{origin(request)}/mcp/"
 
 
 @router.get("/.well-known/oauth-protected-resource")
+@router.get("/.well-known/oauth-protected-resource/mcp")
 async def protected_resource_metadata(request: Request):
     base = origin(request)
     return {
@@ -34,6 +35,7 @@ async def protected_resource_metadata(request: Request):
         "authorization_servers": [base],
         "scopes_supported": ["relay"],
         "bearer_methods_supported": ["header"],
+        "resource_documentation": f"{base}/docs",
     }
 
 
@@ -45,6 +47,8 @@ async def authorization_server_metadata(request: Request):
         "authorization_endpoint": f"{base}/oauth/authorize",
         "token_endpoint": f"{base}/oauth/token",
         "registration_endpoint": f"{base}/oauth/register",
+        "authorization_response_iss_parameter_supported": False,
+        "client_id_metadata_document_supported": False,
         "response_types_supported": ["code"],
         "grant_types_supported": ["authorization_code"],
         "code_challenge_methods_supported": ["S256"],
@@ -178,6 +182,7 @@ async def token(
     redirect_uri: str = Form(...),
     client_id: str = Form(...),
     code_verifier: str = Form(...),
+    resource: str | None = Form(None),
     db: AsyncSession = Depends(get_db),
 ):
     if grant_type != "authorization_code":
@@ -189,7 +194,12 @@ async def token(
     record = result.scalar_one_or_none()
     now = datetime.now(timezone.utc)
     expires_at = record.expires_at.replace(tzinfo=timezone.utc) if record and record.expires_at.tzinfo is None else record.expires_at if record else None
-    if not record or expires_at <= now or record.redirect_uri != redirect_uri:
+    if (
+        not record
+        or expires_at <= now
+        or record.redirect_uri != redirect_uri
+        or (resource is not None and normalize_resource(resource) != normalize_resource(record.resource))
+    ):
         raise HTTPException(status_code=400, detail="Invalid or expired authorization code")
     if not pkce_valid(code_verifier, record.code_challenge, record.code_challenge_method):
         raise HTTPException(status_code=400, detail="PKCE verification failed")

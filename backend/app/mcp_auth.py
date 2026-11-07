@@ -29,7 +29,7 @@ class MCPBearerAuthMiddleware:
         )
         scheme = headers.get("x-forwarded-proto", scope.get("scheme", "https")).split(",")[0].strip()
         host = headers.get("host", "")
-        resource = f"{scheme}://{host}/mcp"
+        resource = f"{scheme}://{host}/mcp/"
         valid_oauth = auth_scheme.lower() == "bearer" and verify_access_token(supplied_token, resource)
         if not (valid_static or valid_oauth):
             metadata_url = f"{scheme}://{host}/.well-known/oauth-protected-resource"
@@ -43,7 +43,7 @@ class MCPBearerAuthMiddleware:
         body = f'{{"detail":"{message}"}}'.encode()
         challenge = "Bearer"
         if resource:
-            challenge += f' resource_metadata="{resource}"'
+            challenge += f' resource_metadata="{resource}" scope="relay"'
         await send({
             "type": "http.response.start",
             "status": status_code,
