@@ -94,7 +94,7 @@ pytest -v
 ### Running the Frontend UI
 ```bash
 npm install
-npm run dev
+npm run server
 ```
 
 ---
@@ -137,3 +137,7 @@ During judging, Wren tests can be run against either your local instance or the 
 2. **Workflow B: Update & Handoff**
    - Call `GET /api/qa/verify-handoff`
    - Verifies prospect reply analysis, stage transition to `Demo Scheduled`, immutable audit timeline entry, and warm sales handoff creation.
+
+In a second terminal, run `npm run dev` and open the local URL printed by Vite. The Vite dev server proxies `/api/sequence` to the server on port `8787`.
+
+The sequence workflow reads `RELAY_AI_API_URL`, `RELAY_AI_API_KEY`, and `RELAY_AI_MODEL` only in `server/`. If the optional provider variables are absent or the provider fails, the API returns a clearly labeled deterministic demo fixture. No sequence proposal is persisted or sent.

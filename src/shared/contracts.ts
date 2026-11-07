@@ -196,3 +196,48 @@ export const createSequencePayloadSchema = z.object({ accountId: z.string().min(
 export const approveSequencePayloadSchema = z.object({ sequenceId: z.string().min(1), approved: z.boolean() });
 export const createActivityPayloadSchema = activitySchema.pick({ accountId: true, contactId: true, type: true, summary: true, source: true });
 export const createHandoffTaskPayloadSchema = handoffTaskSchema.pick({ accountId: true, title: true, reason: true, dueAt: true });
+
+// Server-only AI workflow contracts. These describe a proposal, not a persisted sequence.
+export type GenerateSequencePayload = {
+  account: Account;
+  contact: Contact;
+  notes?: string;
+};
+
+export type GeneratedOutreachStep = {
+  delayDays: number;
+  subject: string;
+  body: string;
+  rationale: string;
+};
+
+export type GeneratedSequenceResult = {
+  mode: "provider" | "demo_fixture";
+  brief: string;
+  facts: SourcedFact[];
+  assumptions: string[];
+  steps: GeneratedOutreachStep[];
+  fallbackReason?: string;
+};
+
+export const generateSequencePayloadSchema = z.object({
+  account: accountSchema,
+  contact: contactSchema,
+  notes: z.string().max(4000).optional(),
+});
+
+const generatedOutreachStepSchema = z.object({
+  delayDays: z.number().int().nonnegative(),
+  subject: z.string().min(1),
+  body: z.string().min(1),
+  rationale: z.string().min(1),
+});
+
+export const generatedSequenceResultSchema = z.object({
+  mode: z.enum(["provider", "demo_fixture"]),
+  brief: z.string().min(1),
+  facts: z.array(sourcedFactSchema),
+  assumptions: z.array(z.string()),
+  steps: z.array(generatedOutreachStepSchema).length(3),
+  fallbackReason: z.string().optional(),
+});
