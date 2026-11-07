@@ -1,0 +1,3 @@
+import { NextResponse } from "next/server";
+import { ImportRowSchema } from "@/lib/schemas";
+export async function POST(req:Request){const rows=await req.json();if(!Array.isArray(rows)||rows.length>250)return NextResponse.json({error:"Upload a CSV with up to 250 leads."},{status:400});const valid=rows.map((r,i)=>({row:i+1,result:ImportRowSchema.safeParse(r)}));const errors=valid.filter(x=>!x.result.success).map(x=>({row:x.row,message:"Check name, company, and email."}));return NextResponse.json({validCount:valid.length-errors.length,errors,rows:valid.filter(x=>x.result.success).map(x=>(x.result as {success:true;data:unknown}).data)});}
