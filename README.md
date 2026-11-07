@@ -125,6 +125,14 @@ If you use a custom domain, add its hostname to `MCP_ALLOWED_HOSTS` in Render. T
 
 ## 💻 Local Setup
 
+### GitHub Pages frontend
+The existing Next.js landing page and the full Relay API documentation page are exported without a design rewrite and deployed automatically from `main`:
+
+- Landing: `https://rohit-ats.github.io/Relay-CRM/`
+- Documentation: `https://rohit-ats.github.io/Relay-CRM/docs/`
+
+The workflow is in `.github/workflows/deploy-pages.yml`. In the repository settings, enable **Pages → Source: GitHub Actions** once; subsequent pushes to `main` deploy both routes automatically. The deployed frontend calls the existing Render API for the live documentation playground.
+
 ### Running the Backend API
 ```bash
 # Navigate to backend
