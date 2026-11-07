@@ -8,6 +8,8 @@
     "server": "tsx server/index.ts",
     "build": "tsc --noEmit && vite build",
     "preview": "vite preview",
+    "dev:api": "python -m uvicorn app.main:app --reload --port 8000 --app-dir backend",
+    "dev:full": "concurrently -k -n API,WEB -c blue,green \"npm:dev:api\" \"npm:dev:next\"",
     "dev:next": "next dev next-ui",
     "build:next": "next build next-ui",
     "start:next": "next start next-ui"
@@ -23,6 +25,7 @@
     "@types/react": "^19.0.2",
     "@types/react-dom": "^19.0.2",
     "autoprefixer": "^10.4.20",
+    "concurrently": "^9.2.1",
     "postcss": "^8.4.49",
     "tailwindcss": "^3.4.17",
     "typescript": "^5.9.3",

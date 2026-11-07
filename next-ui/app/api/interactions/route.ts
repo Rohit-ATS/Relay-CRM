@@ -1,3 +1,11 @@
 import { NextResponse } from "next/server";
-import { InteractionSchema } from "@/lib/schemas";
-export async function POST(req:Request){const parsed=InteractionSchema.safeParse(await req.json());if(!parsed.success)return NextResponse.json({error:"Add a short reply or call note."},{status:400});const positive=/demo|interested|yes|schedule|meeting|pricing|walkthrough|follow up|follow-up/i.test(parsed.data.text);return NextResponse.json({mode:"demo_fixture",proposal:{positive,contactStatus:positive?"Engaged":"Replied",dealStage:positive?"Engaged":"Discovery",reason:positive?"The supplied interaction signals interest or a concrete next step.":"A prospect response was recorded; confirm the next step with the owner.",nextTask:positive?"Follow up and coordinate the requested next step":"Review the reply and agree on a follow-up",summary:`Simulated prospect interaction recorded: “${parsed.data.text.slice(0,220)}”`}});}
+import { backendRequest } from "../_backend";
+
+export async function POST(req: Request) {
+  const body = await req.json();
+  const upstream = await backendRequest("/api/interactions", { method: "POST", body: JSON.stringify({ account_id: body.accountId, content: body.text, channel: "email_reply", apply_immediately: false }) });
+  const payload = await upstream.json();
+  if (!upstream.ok) return NextResponse.json(payload, { status: upstream.status });
+  const update = payload.proposed_update ?? {};
+  return NextResponse.json({ mode: "backend", proposal: { positive: ["request_demo", "warm_followup", "question"].includes(payload.intent), contactStatus: "replied", dealStage: update.proposed_stage, reason: update.recommended_task_reason ?? update.reasoning, nextTask: update.recommended_task_title, summary: update.reasoning ?? `Interaction analyzed as ${payload.intent}.`, evidence: update.evidence_quote, accountId: body.accountId } });
+}

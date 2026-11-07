@@ -100,8 +100,10 @@ pytest -v
 ### Running the Frontend UI
 ```bash
 npm install
-npm run server
+npm run dev:full
 ```
+
+This starts the FastAPI backend on port `8000` and the existing Next.js landing/workspace UI on port `3000`.
 
 ---
 
@@ -144,12 +146,12 @@ During judging, Wren tests can be run against either your local instance or the 
    - Call `GET /api/qa/verify-handoff`
    - Verifies prospect reply analysis, stage transition to `Demo Scheduled`, immutable audit timeline entry, and warm sales handoff creation.
 
-In a second terminal, run `npm run dev` and open the local URL printed by Vite. The Vite dev server proxies `/api/sequence` to the server on port `8787`.
+Open `http://localhost:3000` after running `npm run dev:full`. Do not run `cd Relay-CRM` if PowerShell is already in the repository directory.
 
-The sequence workflow reads `RELAY_AI_API_URL`, `RELAY_AI_API_KEY`, and `RELAY_AI_MODEL` only in `server/`. If the optional provider variables are absent or the provider fails, the API returns a clearly labeled deterministic demo fixture. No sequence proposal is persisted or sent.
+The backend uses the provider settings in `backend/.env.example`; if provider credentials are absent, it uses its deterministic fallback. No sequence proposal is sent externally.
 
 ## Relay landing page
 
 The Vite frontend serves the screenshot-inspired Relay landing page at `/` and the existing CRM workspace at `/workspace`. Its hero includes an illustrative dashboard and clearly labeled sample accounts. The workflow illustration is simulated; Relay does not send external outreach.
 
-The expanded four-screen Next.js UI is preserved as an optional app under `next-ui/`. Start it with `npm run dev:next`; it shares the demo components and data helpers at the repository root. The default `npm run dev` remains the existing Vite app, and `npm run server` starts its local sequence API.
+The four-screen Next.js UI under `next-ui/` is the primary landing/workspace app. Its API routes proxy accounts, contacts, deals, imports, sequences, interactions, and handoffs to FastAPI.
