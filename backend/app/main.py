@@ -18,6 +18,7 @@ from app.api.routes_interactions import router as interactions_router
 from app.api.routes_demo import router as demo_router
 from app.api.routes_qa import router as qa_router
 from app.api.routes_documentation import router as documentation_router
+from app.api.routes_oauth import router as oauth_router
 from app.mcp_auth import MCPBearerAuthMiddleware
 from app.mcp_server import mcp
 
@@ -73,6 +74,7 @@ app.include_router(interactions_router)
 app.include_router(demo_router)
 app.include_router(qa_router)
 app.include_router(documentation_router)
+app.include_router(oauth_router)
 
 # The MCP adapter is mounted on the existing Render service so it shares the
 # deployed API URL. It is protected independently from the public CRM API.
