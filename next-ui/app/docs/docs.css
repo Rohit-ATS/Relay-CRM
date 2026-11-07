@@ -315,20 +315,28 @@
   position: sticky;
   top: 88px;
   color: var(--docs-muted);
-  font-size: 12px;
+  font-size: 13px;
+  align-self: start;
+  max-height: calc(100vh - 108px);
+  overflow-y: auto;
+  scrollbar-width: none;
+}
+
+.docs-side-rail::-webkit-scrollbar {
+  display: none;
 }
 
 .docs-side-rail-left {
-  padding-top: 8px;
+  padding-top: 0;
 }
 
 .docs-side-rail-right {
-  padding-top: 42px;
+  padding-top: 0;
 }
 
 .docs-rail-label {
   color: var(--docs-subtle);
-  font-size: 10px;
+  font-size: 11px;
   font-weight: 800;
   letter-spacing: 1.15px;
   margin-bottom: 12px;
@@ -344,7 +352,7 @@
 .docs-resource-nav a {
   border-left: 1px solid var(--docs-border);
   color: var(--docs-muted);
-  padding: 7px 0 7px 12px;
+  padding: 8px 0 8px 13px;
   transition: color .15s ease, border-color .15s ease;
 }
 
@@ -376,6 +384,7 @@
 .docs-rail-link {
   color: var(--docs-green);
   font-weight: 700;
+  font-size: 13px;
 }
 
 .docs-status-card {
@@ -407,14 +416,14 @@
   display: block;
   color: var(--docs-ink);
   font-family: "Manrope", sans-serif;
-  font-size: 14px;
+  font-size: 15px;
   margin-bottom: 5px;
 }
 
 .docs-status-card > span {
   display: block;
   color: var(--docs-subtle);
-  font-size: 11px;
+  font-size: 12px;
   overflow: hidden;
   text-overflow: ellipsis;
 }
@@ -534,7 +543,7 @@
 }
 
 .top-card p {
-  font-size: 12.5px;
+  font-size: 13px;
   line-height: 1.6;
   color: var(--docs-muted);
   margin: 0;
@@ -600,7 +609,7 @@
 }
 
 .handle-card p {
-  font-size: 12.5px;
+  font-size: 13px;
   line-height: 1.6;
   color: var(--docs-muted);
   margin: 0;
@@ -631,7 +640,7 @@
 }
 
 .sdk-subhead {
-  font-size: 14px;
+  font-size: 15px;
   color: var(--docs-muted);
   margin: 0 0 24px 0;
 }
@@ -680,7 +689,7 @@
 }
 
 .sdk-card b {
-  font-size: 15px;
+  font-size: 16px;
   font-weight: 600;
   color: #111827;
 }
@@ -785,7 +794,7 @@
 
 .docs-mcp-section > p {
   color: var(--docs-muted);
-  font-size: 14px;
+  font-size: 15px;
   line-height: 1.6;
   max-width: 800px;
 }
@@ -849,7 +858,7 @@
 }
 
 .playground-header p {
-  font-size: 13px;
+  font-size: 14px;
   color: var(--docs-muted);
   margin: 0;
 }
