@@ -1,0 +1,78 @@
+from contextlib import asynccontextmanager
+from fastapi import FastAPI, status
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
+
+from app.core.config import settings
+from app.db.session import init_db, async_session_maker
+from app.services.crm_service import crm_service
+from app.api.routes_accounts import router as accounts_router
+from app.api.routes_contacts import router as contacts_router
+from app.api.routes_deals import router as deals_router
+from app.api.routes_activities import router as activities_router
+from app.api.routes_handoffs import router as handoffs_router
+from app.api.routes_import import router as import_router
+from app.api.routes_enrich import router as enrich_router
+from app.api.routes_sequence import router as sequence_router
+from app.api.routes_interactions import router as interactions_router
+from app.api.routes_demo import router as demo_router
+from app.api.routes_qa import router as qa_router
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # Initialize database tables
+    await init_db()
+    
+    # Check if DB is empty; if so, populate initial seed data for immediate usability
+    async with async_session_maker() as session:
+        existing = await crm_service.list_accounts(session, limit=1)
+        if not existing:
+            await crm_service.reset_database(session, seed=True)
+            
+    yield
+
+
+app = FastAPI(
+    title=settings.PROJECT_NAME,
+    version=settings.VERSION,
+    description=settings.DESCRIPTION,
+    lifespan=lifespan
+)
+
+# CORS configuration
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=settings.cors_origin_list,
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+# Include Routers
+app.include_router(accounts_router)
+app.include_router(contacts_router)
+app.include_router(deals_router)
+app.include_router(activities_router)
+app.include_router(handoffs_router)
+app.include_router(import_router)
+app.include_router(enrich_router)
+app.include_router(sequence_router)
+app.include_router(interactions_router)
+app.include_router(demo_router)
+app.include_router(qa_router)
+
+
+@app.get("/", tags=["Health"])
+@app.get("/health", tags=["Health"])
+@app.get("/api/health", tags=["Health"])
+async def health_check():
+    return JSONResponse(
+        status_code=status.HTTP_200_OK,
+        content={
+            "status": "healthy",
+            "service": settings.PROJECT_NAME,
+            "version": settings.VERSION,
+            "environment": settings.ENVIRONMENT
+        }
+    )
