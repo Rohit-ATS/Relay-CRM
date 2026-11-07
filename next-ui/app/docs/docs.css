@@ -12,8 +12,8 @@
   --docs-ink: #111827;
   --docs-muted: #6b7280;
   --docs-subtle: #9ca3af;
-  --docs-code-bg: #0f172a;
-  --docs-code-text: #e2e8f0;
+  --docs-code-bg: #172013;
+  --docs-code-text: #eef5e6;
 }
 
 .docs-shell {
@@ -308,7 +308,7 @@
 
 /* Main Container */
 .docs-container {
-  max-width: 1040px;
+  max-width: 1160px;
   margin: 0 auto;
   padding: 42px 24px 80px;
 }
@@ -360,7 +360,8 @@
   border: 1px solid var(--docs-border);
   border-radius: 14px;
   padding: 23px 22px 24px;
-  min-height: 190px;
+  min-height: 196px;
+  text-align: center;
   transition: all 0.2s ease;
   display: flex;
   flex-direction: column;
@@ -380,7 +381,9 @@
   align-items: center;
   justify-content: center;
   color: var(--docs-green);
-  margin-bottom: 16px;
+  margin: 0 auto 16px;
+  background: var(--docs-green-light);
+  border: 1px solid #e1ead5;
 }
 
 .top-card h3 {
@@ -397,6 +400,8 @@
   line-height: 1.6;
   color: var(--docs-muted);
   margin: 0;
+  max-width: 270px;
+  align-self: center;
 }
 
 /* Screenshot 2: What Relay CRM Handles (2x2 Grid) */
@@ -425,7 +430,8 @@
   border: 1px solid var(--docs-border);
   border-radius: 14px;
   padding: 25px 22px 26px;
-  min-height: 175px;
+  min-height: 178px;
+  text-align: center;
   transition: all 0.2s ease;
 }
 
@@ -439,9 +445,12 @@
   height: 40px;
   display: flex;
   align-items: center;
-  justify-content: flex-start;
+  justify-content: center;
   color: var(--docs-green);
-  margin-bottom: 16px;
+  margin: 0 auto 16px;
+  background: var(--docs-green-light);
+  border: 1px solid #e1ead5;
+  border-radius: 10px;
 }
 
 .handle-card h4 {
@@ -457,6 +466,8 @@
   line-height: 1.6;
   color: var(--docs-muted);
   margin: 0;
+  max-width: 470px;
+  margin-inline: auto;
 }
 
 .handle-card code {
@@ -500,7 +511,7 @@
   border: 1px solid var(--docs-border);
   border-radius: 16px;
   padding: 22px 20px;
-  text-align: left;
+  text-align: center;
   cursor: pointer;
   transition: all 0.15s ease;
   position: relative;
@@ -525,8 +536,9 @@
   height: 32px;
   display: flex;
   align-items: center;
-  justify-content: flex-start;
+  justify-content: center;
   color: var(--docs-green);
+  margin: 0 auto;
 }
 
 .sdk-card b {
@@ -549,7 +561,7 @@
 
 /* Code Viewer Box */
 .code-viewer-panel {
-  background: #0f172a;
+  background: var(--docs-code-bg);
   border-radius: 16px;
   overflow: hidden;
   box-shadow: 0 12px 30px rgba(0, 0, 0, 0.15);
@@ -557,12 +569,12 @@
 }
 
 .code-viewer-header {
-  background: #1e293b;
+  background: #2a3a20;
   padding: 10px 16px;
   display: flex;
   align-items: center;
   justify-content: space-between;
-  border-bottom: 1px solid #334155;
+  border-bottom: 1px solid #435b34;
   overflow-x: auto;
 }
 
@@ -575,7 +587,7 @@
 .endpoint-btn {
   background: transparent;
   border: none;
-  color: #94a3b8;
+  color: #b7c8aa;
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
   font-size: 12px;
   padding: 6px 12px;
@@ -586,20 +598,20 @@
 }
 
 .endpoint-btn:hover {
-  color: #f1f5f9;
+  color: #f3faed;
   background: rgba(255, 255, 255, 0.05);
 }
 
 .endpoint-btn.active {
-  background: #334155;
-  color: #38bdf8;
+  background: #536b2d;
+  color: #f4f9ee;
   font-weight: 600;
 }
 
 .copy-code-btn {
   background: rgba(255, 255, 255, 0.1);
   border: 1px solid rgba(255, 255, 255, 0.15);
-  color: #f1f5f9;
+  color: #f4f9ee;
   font-size: 11px;
   font-weight: 600;
   padding: 5px 12px;
@@ -618,7 +630,7 @@
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
   font-size: 13px;
   line-height: 1.6;
-  color: #e2e8f0;
+  color: var(--docs-code-text);
   overflow-x: auto;
 }
 
@@ -648,7 +660,7 @@
 }
 
 .mcp-card {
-  background: #0f172a;
+  background: var(--docs-code-bg);
   border-radius: 14px;
   overflow: hidden;
 }
@@ -656,7 +668,7 @@
 .mcp-card-label {
   display: block;
   padding: 12px 16px 0;
-  color: #94a3b8;
+  color: #b7c8aa;
   font-size: 11px;
   font-weight: 700;
   letter-spacing: .08em;
@@ -666,7 +678,7 @@
 .mcp-card pre {
   margin: 0;
   padding: 12px 16px 16px;
-  color: #e2e8f0;
+  color: var(--docs-code-text);
   font: 12px/1.6 ui-monospace, SFMono-Regular, Menlo, monospace;
   overflow-x: auto;
 }
@@ -728,22 +740,22 @@
 }
 
 .playground-terminal {
-  background: #0f172a;
+  background: var(--docs-code-bg);
   border-radius: 12px;
   overflow: hidden;
-  border: 1px solid #1e293b;
+  border: 1px solid #31472a;
 }
 
 .terminal-header {
-  background: #1e293b;
+  background: #2a3a20;
   padding: 10px 16px;
   display: flex;
   align-items: center;
   justify-content: space-between;
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
   font-size: 12px;
-  color: #94a3b8;
-  border-bottom: 1px solid #334155;
+  color: #b7c8aa;
+  border-bottom: 1px solid #435b34;
 }
 
 .terminal-dots {
@@ -769,8 +781,8 @@
 }
 
 .status-live {
-  background: #334155;
-  color: #cbd5e1;
+  background: #435b34;
+  color: #e1ecd9;
   padding: 2px 6px;
   border-radius: 4px;
   font-size: 11px;
@@ -780,7 +792,7 @@
 .terminal-body {
   margin: 0;
   padding: 18px;
-  color: #38bdf8;
+  color: #c4e39d;
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
   font-size: 12px;
   line-height: 1.6;
