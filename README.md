@@ -78,7 +78,60 @@ Relay turns lead lists into persistent customer records, tailored outreach plans
 - FastAPI interactive reference: `/docs` on the API service (also available through `/documentation` and `/introduction`).
 - The documentation uses HTTP request examples rather than claiming unsupported official SDKs. TypeScript, Python, and cURL are the recommended starting points; any language with an HTTP client can call the API.
 
+### MCP adapter
+Relay includes a complete MCP adapter in `backend/app/mcp_server.py`. It exposes the existing API without duplicating CRM logic:
+
+| MCP surface | Coverage |
+|---|---|
+| Tools | Accounts, contacts, deals, activities, handoffs, CSV preview/import, briefs, sequences, interaction analysis/confirmation, demo reset/seed, and both QA workflows |
+| Resources | `relay://openapi` for the live OpenAPI schema and `relay://documentation` for integration guidance |
+| Prompts | `prepare_outreach`, `process_reply`, and `run_demo_proof` |
+| Transports | stdio for desktop clients, Streamable HTTP at `/mcp`, and SSE |
+
+Run stdio locally after installing backend requirements:
+```bash
+RELAY_API_BASE_URL=http://localhost:8787 \
+  .venv/bin/python backend/app/mcp_server.py
+```
+
+Run a network MCP server:
+```bash
+MCP_TRANSPORT=streamable-http \
+MCP_HOST=0.0.0.0 \
+MCP_PORT=8000 \
+RELAY_API_BASE_URL=https://relay-crm-api.onrender.com \
+  .venv/bin/python backend/app/mcp_server.py
+```
+The MCP endpoint is then `https://your-mcp-host.example.com/mcp/`. The existing Render service also exposes the legacy SSE transport at `/mcp-legacy/sse`; use it only for clients that do not support Streamable HTTP.
+
+For Cursor, use a local stdio configuration:
+```json
+{
+  "mcpServers": {
+    "relay-crm": {
+      "command": "/absolute/path/to/.venv/bin/python",
+      "args": ["/absolute/path/to/backend/app/mcp_server.py"],
+      "env": {
+        "RELAY_API_BASE_URL": "https://relay-crm-api.onrender.com"
+      }
+    }
+  }
+}
+```
+
+`MCP_AUTH_TOKEN` protects the remote MCP mount with `Authorization: Bearer <token>`. Generate it locally with `openssl rand -hex 32`, then add it as a secret environment variable in Render. The current public CRM API remains unchanged; do not expose the MCP URL without this token. The adapter intentionally keeps proposal and mutation steps separate: agents can analyze, but approvals and CRM changes require an explicit user action.
+
+If you use a custom domain, add its hostname to `MCP_ALLOWED_HOSTS` in Render. The default allowlist includes the deployed Render hostname and local development hosts.
+
 ## 💻 Local Setup
+
+### GitHub Pages frontend
+The existing Next.js landing page and the full Relay API documentation page are exported without a design rewrite and deployed automatically from `main`:
+
+- Landing: `https://rohit-ats.github.io/Relay-CRM/`
+- Documentation: `https://rohit-ats.github.io/Relay-CRM/docs/`
+
+The workflow is in `.github/workflows/deploy-pages.yml`. In the repository settings, enable **Pages → Source: GitHub Actions** once; subsequent pushes to `main` deploy both routes automatically. The deployed frontend calls the existing Render API for the live documentation playground.
 
 ### Running the Backend API
 ```bash

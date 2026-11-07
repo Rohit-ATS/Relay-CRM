@@ -12,6 +12,7 @@
     "dev:full": "concurrently -k -n API,WEB -c blue,green \"npm:dev:api\" \"npm:dev:next\"",
     "dev:next": "next dev next-ui",
     "build:next": "next build next-ui",
+    "export:next": "next build next-ui",
     "start:next": "next start next-ui"
   },
   "dependencies": {
