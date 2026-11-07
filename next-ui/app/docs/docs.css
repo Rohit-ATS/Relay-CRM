@@ -312,18 +312,9 @@
 }
 
 .docs-side-rail {
-  position: sticky;
-  top: 88px;
   color: var(--docs-muted);
   font-size: 13px;
   align-self: start;
-  max-height: calc(100vh - 108px);
-  overflow-y: auto;
-  scrollbar-width: none;
-}
-
-.docs-side-rail::-webkit-scrollbar {
-  display: none;
 }
 
 .docs-side-rail-left {
