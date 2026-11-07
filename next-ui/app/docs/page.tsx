@@ -421,9 +421,6 @@ curl "${API_BASE}/api/qa/verify-handoff"`,
             <span className="docs-logo-text">relay<span className="docs-dot">.</span></span>
           </Link>
           <span className="docs-badge">Documentation</span>
-          <span className="docs-live-pill">
-            <i className="docs-pulse-dot" /> Live on Render
-          </span>
         </div>
 
         {/* Screenshot 2 Top Tabs */}
@@ -688,9 +685,12 @@ curl "${API_BASE}/api/qa/verify-handoff"`,
 
             <div className="handle-card">
               <div className="handle-icon">
-                {/* Green Circular Sync / Refresh Icon */}
+                {/* Green handoff arrow icon */}
                 <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#587428" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67" />
+                  <path d="M4 12h14" />
+                  <path d="m13 6 6 6-6 6" />
+                  <path d="M5 6v2" />
+                  <path d="M5 16v2" />
                 </svg>
               </div>
               <h4>Automated Warm Handoffs</h4>

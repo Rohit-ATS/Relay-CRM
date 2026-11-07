@@ -103,19 +103,6 @@
   letter-spacing: 0.2px;
 }
 
-.docs-live-pill {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  background: #ecfdf5;
-  color: #065f46;
-  border: 1px solid #a7f3d0;
-  padding: 3px 9px;
-  border-radius: 999px;
-  font-size: 11px;
-  font-weight: 600;
-}
-
 .docs-pulse-dot {
   width: 6px;
   height: 6px;
@@ -308,15 +295,15 @@
 
 /* Main Container */
 .docs-container {
-  max-width: 1420px;
+  max-width: 1480px;
   margin: 0 auto;
   padding: 42px 24px 80px;
 }
 
 .docs-layout {
   display: grid;
-  grid-template-columns: 170px minmax(0, 1fr) 178px;
-  gap: 34px;
+  grid-template-columns: 194px minmax(0, 1fr) 208px;
+  gap: 40px;
   align-items: start;
 }
 
@@ -328,7 +315,7 @@
   position: sticky;
   top: 88px;
   color: var(--docs-muted);
-  font-size: 11px;
+  font-size: 12px;
 }
 
 .docs-side-rail-left {
@@ -341,7 +328,7 @@
 
 .docs-rail-label {
   color: var(--docs-subtle);
-  font-size: 9px;
+  font-size: 10px;
   font-weight: 800;
   letter-spacing: 1.15px;
   margin-bottom: 12px;
@@ -395,7 +382,7 @@
   border: 1px solid var(--docs-border);
   border-radius: 12px;
   background: var(--docs-surface);
-  padding: 13px;
+  padding: 16px;
   margin-bottom: 27px;
   box-shadow: 0 6px 18px rgba(32, 48, 24, .04);
 }
@@ -405,7 +392,7 @@
   align-items: center;
   gap: 6px;
   color: var(--docs-green);
-  font-size: 9px;
+  font-size: 10px;
   font-weight: 800;
   letter-spacing: .9px;
   margin-bottom: 10px;
@@ -420,14 +407,14 @@
   display: block;
   color: var(--docs-ink);
   font-family: "Manrope", sans-serif;
-  font-size: 13px;
+  font-size: 14px;
   margin-bottom: 5px;
 }
 
 .docs-status-card > span {
   display: block;
   color: var(--docs-subtle);
-  font-size: 10px;
+  font-size: 11px;
   overflow: hidden;
   text-overflow: ellipsis;
 }
@@ -440,7 +427,7 @@
   border-radius: 12px;
   background: var(--docs-green-light);
   border: 1px solid #e1ead5;
-  padding: 13px;
+  padding: 16px;
 }
 
 .docs-rail-note-icon {
@@ -453,13 +440,13 @@
 .docs-rail-note strong {
   display: block;
   color: #34451f;
-  font-size: 11px;
+  font-size: 12px;
   line-height: 1.35;
 }
 
 .docs-rail-note p {
   color: #71815d;
-  font-size: 10px;
+  font-size: 11px;
   line-height: 1.5;
   margin: 5px 0 0;
 }
