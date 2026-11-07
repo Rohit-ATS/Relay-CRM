@@ -32,7 +32,8 @@ class MCPBearerAuthMiddleware:
         resource = f"{scheme}://{host}/mcp"
         valid_oauth = auth_scheme.lower() == "bearer" and verify_access_token(supplied_token, resource)
         if not (valid_static or valid_oauth):
-            await self._error(send, 401, "Valid MCP bearer token required.", resource)
+            metadata_url = f"{scheme}://{host}/.well-known/oauth-protected-resource"
+            await self._error(send, 401, "Valid MCP bearer token required.", metadata_url)
             return
 
         await self.app(scope, receive, send)
@@ -42,7 +43,7 @@ class MCPBearerAuthMiddleware:
         body = f'{{"detail":"{message}"}}'.encode()
         challenge = "Bearer"
         if resource:
-            challenge += f' resource_metadata="{resource}/.well-known/oauth-protected-resource"'
+            challenge += f' resource_metadata="{resource}"'
         await send({
             "type": "http.response.start",
             "status": status_code,
