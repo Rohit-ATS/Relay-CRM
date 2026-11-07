@@ -155,19 +155,27 @@ Open `http://localhost:3000` after running `npm run dev:full`. Do not run `cd Re
 
 The backend uses the provider settings in `backend/.env.example`; if provider credentials are absent, it uses its deterministic fallback. No sequence proposal is sent externally.
 
-## Relay landing page
+## Relay workspace
 
-The Vite frontend serves the screenshot-inspired Relay landing page at `/` and the existing CRM workspace at `/workspace`. Its hero includes an illustrative dashboard and clearly labeled sample accounts. The workflow illustration is simulated; Relay does not send external outreach.
+The Vite app opens on the Dashboard at `/` (also `/dashboard` and `/workspace`). Its left navigation includes Action Center, Accounts, Pipeline, People, Tasks, Notes, Reports, Automations, Documentation, Settings, and Log out. Handoffs appear in Dashboard and Tasks; there is no separate Handoff Queue screen.
 
-The Vite UI at `/` and `/workspace` is the primary Relay experience and remains the default `npm run dev` app. The four-screen Next.js UI under `next-ui/` is an optional full-stack frontend; its API routes proxy CRM operations to FastAPI. Use `npm run dev:full` when you want that Next.js app with the FastAPI backend.
+Pipeline columns use recorded call notes, simulated prospect replies, and deals explicitly marked lost. Sequence approval records a human decision for workflow tracking and never sends an email. AI sequence output is generated server-side and Zod validated; if credentials are absent or the provider fails, Relay returns a labeled deterministic fixture.
 
-### Judge demo path (about 90 seconds)
+For the demo: import sample leads from **Accounts**, inspect/approve plans in **Action Center** (or open **Automations** to review an account-specific plan), log a simulated reply or call note from an account detail, confirm the proposed CRM update, then return to Dashboard to see the changed deal, timeline, and handoff task. **Settings → Reset demo data** restores seeded records in local browser storage.
 
-1. Open `/workspace`; four realistic demo accounts are seeded in browser storage.
-2. Choose **Load sample**, inspect the CSV preview, then choose **Import** to add linked account, contact, and deal records.
-3. Open an account from the pipeline, then choose **Review sequence**.
-4. Generate a draft, review it, and choose **Approve plan**. This records human approval; it does not send email.
-5. Return to the account, enter a simulated prospect reply or call note, inspect the suggested update, and choose **Confirm and update CRM**.
-6. Review the updated deal and activity timeline, then open **Handoff queue** to see the follow-up task.
+The screenshot-inspired marketing page is available at `/landing`. The optional Next.js app remains available through `npm run dev:full` or `npm run dev:next`.
 
-Use **Reset demo data** in the workspace navigation to restore the seeded state. Imported records and workflow actions are stored in this browser's local storage. The optional Next.js app's provider/fixture behavior is described in its route documentation; no message is sent by the Vite demo.
+## Gemini + Supabase integration groundwork
+
+The existing landing page, Vite workspace, FastAPI API, SQLite demo mode, and deterministic fixtures remain available. The TypeScript API on port `8787` now uses the official `@google/genai` SDK when `GEMINI_API_KEY` is configured; otherwise each agent returns a labeled deterministic fixture. Server prompts live in `server/agents/prompts/`, and output is validated with Zod before returning. The endpoints are `/api/sequence`, `/api/agents/research`, and `/api/agents/steward` through the Vite `/api` proxy. These agents propose data only; they do not send outreach or commit CRM mutations.
+
+The Supabase migration at [`supabase/migrations/202611070001_relay_core.sql`](supabase/migrations/202611070001_relay_core.sql) defines workspace-owned CRM, workflow, approval, and agent-run tables. RLS requires Supabase Auth membership; new Auth users receive a private workspace. Realtime publication includes `agent_runs`, `activities`, `accounts`, `deals`, and `handoff_tasks`. Browser subscriptions in `src/lib/supabase-realtime.ts` require an authenticated Supabase session and workspace ID. The server helper uses the caller's JWT and publishable key, so queries remain subject to RLS. `SUPABASE_SECRET_KEY` is server-only and is not used by browser code.
+
+To configure an actual Supabase project:
+
+1. Copy the variable names from `.env.example`; set `GEMINI_API_KEY`, `GEMINI_MODEL`, `SUPABASE_URL`, and `SUPABASE_PUBLISHABLE_KEY`. Add the Supabase URL and publishable key with the `VITE_` prefix for the browser client. Never set a service/secret key with a `VITE_` prefix.
+2. Link the Supabase CLI to the project, then apply the checked-in schema: `npx supabase link --project-ref YOUR_PROJECT_REF` followed by `npx supabase db push`.
+3. Enable email authentication in Supabase Auth. The migration creates a private workspace and owner membership when an Auth user is created.
+4. Start the existing Vite app and API with `npm run dev` and `npm run server` in separate terminals. The app remains usable in local demo mode without credentials.
+
+The Supabase migration and authenticated Realtime client are foundations for the live data path; the current CRM screens still use the existing browser-local demo store and FastAPI persistence. Applying the migration alone does not switch those screens to Supabase. Connect Auth and the typed Supabase data operations before treating Supabase as the active CRM database. No Supabase or Gemini credentials are checked into this repository.

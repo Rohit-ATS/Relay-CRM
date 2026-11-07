@@ -1,24 +1,43 @@
 import { createServer } from "node:http";
 import { generateSequence } from "./sequence";
+import { runLeadResearch } from "./agents/lead-research";
+import { runCRMSteward } from "./agents/crm-steward";
 
 const port = Number(process.env.RELAY_SERVER_PORT ?? 8787);
+async function readJson(request: AsyncIterable<Uint8Array>): Promise<unknown> {
+  const chunks: Buffer[] = [];
+  for await (const chunk of request) chunks.push(Buffer.from(chunk));
+  return JSON.parse(Buffer.concat(chunks).toString("utf8"));
+}
+function send(response: import("node:http").ServerResponse, status: number, payload: unknown) {
+  response.writeHead(status, { "content-type": "application/json", "cache-control": "no-store" });
+  response.end(JSON.stringify(payload));
+}
 
 createServer(async (request, response) => {
-  if (request.method !== "POST" || request.url !== "/api/sequence") {
-    response.writeHead(404, { "content-type": "application/json" });
-    response.end(JSON.stringify({ error: "Not found" }));
+  const path = new URL(request.url ?? "/", `http://${request.headers.host ?? "localhost"}`).pathname;
+  if (request.method === "GET" && path === "/api/integrations/status") {
+    send(response, 200, {
+      gemini: Boolean(process.env.GEMINI_API_KEY),
+      supabase: Boolean(process.env.SUPABASE_URL && process.env.SUPABASE_PUBLISHABLE_KEY),
+      persistence: "Supabase Auth + RLS required for persistent workspace routes",
+    });
     return;
   }
-
+  if (request.method !== "POST" || !["/api/sequence", "/api/agents/research", "/api/agents/steward"].includes(path)) {
+    send(response, 404, { error: "Not found" });
+    return;
+  }
   try {
-    const chunks: Buffer[] = [];
-    for await (const chunk of request) chunks.push(Buffer.from(chunk));
-    const result = await generateSequence(JSON.parse(Buffer.concat(chunks).toString("utf8")));
-    response.writeHead(200, { "content-type": "application/json" });
-    response.end(JSON.stringify(result));
+    const body = await readJson(request);
+    const result = path === "/api/sequence"
+      ? await generateSequence(body)
+      : path === "/api/agents/research"
+        ? await runLeadResearch(body)
+        : await runCRMSteward(body);
+    send(response, 200, result);
   } catch (error) {
-    const message = error instanceof Error ? error.message : "Invalid sequence request";
-    response.writeHead(400, { "content-type": "application/json" });
-    response.end(JSON.stringify({ error: message }));
+    const message = error instanceof Error ? error.message : "Invalid request";
+    send(response, 400, { error: message });
   }
 }).listen(port, () => console.log(`Relay API listening on http://localhost:${port}`));

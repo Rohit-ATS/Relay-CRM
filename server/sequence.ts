@@ -6,8 +6,7 @@ import {
   type GeneratedSequenceResult,
   type SourcedFact,
 } from "../src/shared/contracts";
-
-type ProviderOutput = unknown;
+import { runOutreachPlanner } from "./agents/outreach-planner";
 
 function fact(key: string, value: string, label: string): SourcedFact {
   return { key, value, source: { type: "user", label, confidence: 1 } };
@@ -36,43 +35,12 @@ export function demoFixture(account: Account, contact: Contact, notes?: string, 
   return generatedSequenceResultSchema.parse(result);
 }
 
-function providerText(output: ProviderOutput): string | undefined {
-  if (!output || typeof output !== "object") return undefined;
-  const candidate = output as { output?: unknown; text?: unknown; choices?: Array<{ message?: { content?: unknown } }> };
-  if (typeof candidate.output === "string") return candidate.output;
-  if (typeof candidate.text === "string") return candidate.text;
-  const content = candidate.choices?.[0]?.message?.content;
-  return typeof content === "string" ? content : undefined;
-}
-
-async function callProvider(account: Account, contact: Contact, notes?: string): Promise<GeneratedSequenceResult> {
-  const apiKey = process.env.RELAY_AI_API_KEY;
-  const apiUrl = process.env.RELAY_AI_API_URL;
-  if (!apiKey || !apiUrl) throw new Error("RELAY_AI_API_KEY or RELAY_AI_API_URL is not configured");
-
-  const response = await fetch(apiUrl, {
-    method: "POST",
-    headers: { "content-type": "application/json", authorization: `Bearer ${apiKey}` },
-    body: JSON.stringify({
-      model: process.env.RELAY_AI_MODEL ?? "relay-default",
-      input: { account, contact, notes: notes ?? "" },
-      instructions: "Return JSON only matching the requested Relay sequence result. Use only supplied account, contact, and notes. Never invent sourced facts. Return exactly 3 email steps with delayDays, subject, body, and rationale. Set mode to provider.",
-    }),
-    signal: AbortSignal.timeout(20_000),
-  });
-  if (!response.ok) throw new Error(`Provider returned HTTP ${response.status}`);
-  const text = providerText(await response.json());
-  if (!text) throw new Error("Provider response did not contain JSON text");
-  const parsed = JSON.parse(text.replace(/^```json\s*|\s*```$/g, ""));
-  return generatedSequenceResultSchema.parse({ ...parsed, mode: "provider" });
-}
-
 export async function generateSequence(input: unknown): Promise<GeneratedSequenceResult> {
   const payload = generateSequencePayloadSchema.parse(input);
   try {
-    return await callProvider(payload.account, payload.contact, payload.notes);
+    return await runOutreachPlanner(payload);
   } catch (error) {
-    const reason = error instanceof Error ? error.message : "The configured provider failed";
-    return demoFixture(payload.account, payload.contact, payload.notes, reason);
+    const reason = error instanceof Error ? error.message : "Gemini request failed";
+    return demoFixture(payload.account, payload.contact, payload.notes, process.env.GEMINI_API_KEY ? reason : undefined);
   }
 }

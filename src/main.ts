@@ -18,5 +18,5 @@ function renderLanding(): void {
     </main>`;
 }
 
-if (window.location.pathname === "/") renderLanding();
+if (window.location.pathname === "/landing") renderLanding();
 else renderWorkspace(app);
