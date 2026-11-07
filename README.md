@@ -154,4 +154,15 @@ The backend uses the provider settings in `backend/.env.example`; if provider cr
 
 The Vite frontend serves the screenshot-inspired Relay landing page at `/` and the existing CRM workspace at `/workspace`. Its hero includes an illustrative dashboard and clearly labeled sample accounts. The workflow illustration is simulated; Relay does not send external outreach.
 
-The four-screen Next.js UI under `next-ui/` is the primary landing/workspace app. Its API routes proxy accounts, contacts, deals, imports, sequences, interactions, and handoffs to FastAPI.
+The Vite UI at `/` and `/workspace` is the primary Relay experience and remains the default `npm run dev` app. The four-screen Next.js UI under `next-ui/` is an optional full-stack frontend; its API routes proxy CRM operations to FastAPI. Use `npm run dev:full` when you want that Next.js app with the FastAPI backend.
+
+### Judge demo path (about 90 seconds)
+
+1. Open `/workspace`; four realistic demo accounts are seeded in browser storage.
+2. Choose **Load sample**, inspect the CSV preview, then choose **Import** to add linked account, contact, and deal records.
+3. Open an account from the pipeline, then choose **Review sequence**.
+4. Generate a draft, review it, and choose **Approve plan**. This records human approval; it does not send email.
+5. Return to the account, enter a simulated prospect reply or call note, inspect the suggested update, and choose **Confirm and update CRM**.
+6. Review the updated deal and activity timeline, then open **Handoff queue** to see the follow-up task.
+
+Use **Reset demo data** in the workspace navigation to restore the seeded state. Imported records and workflow actions are stored in this browser's local storage. The optional Next.js app's provider/fixture behavior is described in its route documentation; no message is sent by the Vite demo.
