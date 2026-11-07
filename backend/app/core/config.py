@@ -9,7 +9,7 @@ class Settings(BaseSettings):
     DESCRIPTION: str = "AI-native CRM backend for founder-led outbound workflows"
     
     HOST: str = "0.0.0.0"
-    PORT: int = int(os.getenv("PORT", 8000))
+    PORT: int = int(os.getenv("PORT", 8787))
     ENVIRONMENT: str = "development"
     
     # SQLite async by default; supports postgresql+asyncpg:// if provided

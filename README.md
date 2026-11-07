@@ -23,9 +23,11 @@ Relay turns lead lists into persistent customer records, tailored outreach plans
 ## 🏗️ Repository Architecture
 
 - **Frontend (`src/`):** TypeScript + Vite UI with shared contracts ([`src/shared/contracts.ts`](src/shared/contracts.ts)).
-- **Backend API (`app/`):** FastAPI + SQLAlchemy (Async) + Pydantic v2 supporting both snake_case and camelCase contracts.
-- **Tests (`tests/`):** Pytest test suite testing all CRM endpoints, AI sequences, inbound interactions, and Wren workflows.
-- **Render Deployment (`render.yaml`, `Dockerfile`, `Procfile`):** Ready for one-click deployment as a Render Web Service.
+- **Backend API (`backend/`):** FastAPI + SQLAlchemy (Async) + Pydantic v2 supporting both snake_case and camelCase contracts.
+  - `backend/app/` — Application routers, DB models, schemas, and AI services.
+  - `backend/tests/` — Pytest test suite covering all CRM operations, sequences, and Wren QA.
+  - `backend/sample_data/` — Synthetic B2B outbound lead fixtures.
+- **Render Deployment (`render.yaml`, `backend/Dockerfile`, `backend/Procfile`):** Ready for one-click deployment as a Render Web Service.
 
 ---
 
@@ -75,6 +77,9 @@ Relay turns lead lists into persistent customer records, tailored outreach plans
 
 ### Running the Backend API
 ```bash
+# Navigate to backend
+cd backend
+
 # Create virtual environment and install dependencies
 uv venv .venv
 source .venv/bin/activate
@@ -87,6 +92,7 @@ Swagger API docs available at: `http://localhost:8000/docs`
 
 ### Running the Test Suite
 ```bash
+cd backend
 source .venv/bin/activate
 pytest -v
 ```
@@ -94,7 +100,7 @@ pytest -v
 ### Running the Frontend UI
 ```bash
 npm install
-npm run dev
+npm run server
 ```
 
 ---
@@ -138,17 +144,12 @@ During judging, Wren tests can be run against either your local instance or the 
    - Call `GET /api/qa/verify-handoff`
    - Verifies prospect reply analysis, stage transition to `Demo Scheduled`, immutable audit timeline entry, and warm sales handoff creation.
 
+In a second terminal, run `npm run dev` and open the local URL printed by Vite. The Vite dev server proxies `/api/sequence` to the server on port `8787`.
+
+The sequence workflow reads `RELAY_AI_API_URL`, `RELAY_AI_API_KEY`, and `RELAY_AI_MODEL` only in `server/`. If the optional provider variables are absent or the provider fails, the API returns a clearly labeled deterministic demo fixture. No sequence proposal is persisted or sent.
+
 ## Relay landing page
 
-The marketing landing page is served at `/`. The existing Vite CRM workspace remains at `/workspace`; the optional Next.js version of the CRM screens can be run with `npm run dev:next`.
+The Vite frontend serves the screenshot-inspired Relay landing page at `/` and the existing CRM workspace at `/workspace`. Its hero includes an illustrative dashboard and clearly labeled sample accounts. The workflow illustration is simulated; Relay does not send external outreach.
 
-The landing page uses the Relay orange-and-white visual system and a labeled sample dashboard preview. The sample accounts shown are demo fixtures, not customer endorsements. No external outreach is sent.
-
-### Frontend commands
-
-```bash
-npm install
-npm run dev
-```
-
-For the optional Next.js UI, use `npm run dev:next`. The FastAPI backend setup and routes are documented above.
+The expanded four-screen Next.js UI is preserved as an optional app under `next-ui/`. Start it with `npm run dev:next`; it shares the demo components and data helpers at the repository root. The default `npm run dev` remains the existing Vite app, and `npm run server` starts its local sequence API.

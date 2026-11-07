@@ -5,11 +5,12 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "tsc --noEmit -p tsconfig.vite.json && vite build",
+    "server": "tsx server/index.ts",
+    "build": "tsc --noEmit && vite build",
     "preview": "vite preview",
-    "dev:next": "next dev",
-    "build:next": "next build",
-    "start:next": "next start"
+    "dev:next": "next dev next-ui",
+    "build:next": "next build next-ui",
+    "start:next": "next start next-ui"
   },
   "dependencies": {
     "next": "^15.1.0",
@@ -24,7 +25,8 @@
     "autoprefixer": "^10.4.20",
     "postcss": "^8.4.49",
     "tailwindcss": "^3.4.17",
-    "typescript": "^5.7.2",
-    "vite": "^7.2.2"
+    "typescript": "^5.9.3",
+    "vite": "^7.2.2",
+    "tsx": "^4.20.6"
   }
 }
