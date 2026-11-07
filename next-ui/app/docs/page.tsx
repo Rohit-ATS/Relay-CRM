@@ -437,7 +437,7 @@ curl "${API_BASE}/api/qa/verify-handoff"`,
           <a href={`${API_BASE}/docs`} target="_blank" rel="noreferrer" className="docs-nav-tab">
             API Reference ↗
           </a>
-          <a href="#sdks" className="docs-nav-tab">
+          <a href="#mcp" className="docs-nav-tab">
             External Integrations
           </a>
           <a href={`${API_BASE}/api/qa/status`} target="_blank" rel="noreferrer" className="docs-nav-tab">
@@ -582,7 +582,7 @@ curl "${API_BASE}/api/qa/verify-handoff"`,
             </div>
             <h3>Integrate with Your Coding Agent</h3>
             <p>
-              Install the Agent Plugin or MCP Server and have your coding agent build the integration, query accounts, and automate workflows.
+              Connect an MCP client and let your coding agent query accounts, draft sequences, and run approved CRM workflows.
             </p>
           </div>
 
@@ -897,6 +897,45 @@ curl "${API_BASE}/api/qa/verify-handoff"`,
               <code>{codeSnippets[selectedLang]?.[selectedEndpoint] || codeSnippets["curl"][selectedEndpoint]}</code>
             </pre>
           </div>
+        </section>
+
+        <section className="docs-mcp-section" id="mcp">
+          <div className="docs-eyebrow">MODEL CONTEXT PROTOCOL</div>
+          <h2>Bring Relay into your AI workspace</h2>
+          <p>
+            Relay includes a full MCP adapter with CRM tools, prompts, and live OpenAPI resources.
+            Keep the adapter local for development, or expose its Streamable HTTP endpoint from a
+            separately secured service.
+          </p>
+          <div className="mcp-grid">
+            <div className="mcp-card">
+              <span className="mcp-card-label">Local / Cursor</span>
+              <pre>{`{
+  "mcpServers": {
+    "relay-crm": {
+      "command": "/path/to/.venv/bin/python",
+      "args": ["/path/to/backend/app/mcp_server.py"],
+      "env": {
+        "RELAY_API_BASE_URL": "${API_BASE}"
+      }
+    }
+  }
+}`}</pre>
+            </div>
+            <div className="mcp-card">
+              <span className="mcp-card-label">Remote / Streamable HTTP</span>
+              <pre>{`MCP_TRANSPORT=streamable-http
+MCP_HOST=0.0.0.0
+MCP_PORT=8000
+RELAY_API_BASE_URL=${API_BASE}
+
+POST /mcp`}</pre>
+            </div>
+          </div>
+          <p className="mcp-note">
+            Mutating tools remain explicit: analyze first, then approve or confirm only after the user
+            reviews the proposed change. See the repository README for the complete tool catalog.
+          </p>
         </section>
 
         {/* Live Playground against deployed Render instance */}

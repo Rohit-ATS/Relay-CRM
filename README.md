@@ -78,6 +78,49 @@ Relay turns lead lists into persistent customer records, tailored outreach plans
 - FastAPI interactive reference: `/docs` on the API service (also available through `/documentation` and `/introduction`).
 - The documentation uses HTTP request examples rather than claiming unsupported official SDKs. TypeScript, Python, and cURL are the recommended starting points; any language with an HTTP client can call the API.
 
+### MCP adapter
+Relay includes a complete MCP adapter in `backend/app/mcp_server.py`. It exposes the existing API without duplicating CRM logic:
+
+| MCP surface | Coverage |
+|---|---|
+| Tools | Accounts, contacts, deals, activities, handoffs, CSV preview/import, briefs, sequences, interaction analysis/confirmation, demo reset/seed, and both QA workflows |
+| Resources | `relay://openapi` for the live OpenAPI schema and `relay://documentation` for integration guidance |
+| Prompts | `prepare_outreach`, `process_reply`, and `run_demo_proof` |
+| Transports | stdio for desktop clients, Streamable HTTP at `/mcp`, and SSE |
+
+Run stdio locally after installing backend requirements:
+```bash
+RELAY_API_BASE_URL=http://localhost:8787 \
+  .venv/bin/python backend/app/mcp_server.py
+```
+
+Run a network MCP server:
+```bash
+MCP_TRANSPORT=streamable-http \
+MCP_HOST=0.0.0.0 \
+MCP_PORT=8000 \
+RELAY_API_BASE_URL=https://relay-crm-api.onrender.com \
+  .venv/bin/python backend/app/mcp_server.py
+```
+The MCP endpoint is then `https://your-mcp-host.example.com/mcp`. Use `MCP_TRANSPORT=sse` only for clients that do not support Streamable HTTP.
+
+For Cursor, use a local stdio configuration:
+```json
+{
+  "mcpServers": {
+    "relay-crm": {
+      "command": "/absolute/path/to/.venv/bin/python",
+      "args": ["/absolute/path/to/backend/app/mcp_server.py"],
+      "env": {
+        "RELAY_API_BASE_URL": "https://relay-crm-api.onrender.com"
+      }
+    }
+  }
+}
+```
+
+`RELAY_API_TOKEN` is forwarded as a Bearer token when configured. The current API has no token middleware, so keep the MCP process private and do not expose the network transport until API authentication is enabled. The adapter intentionally keeps proposal and mutation steps separate: agents can analyze, but approvals and CRM changes require an explicit user action.
+
 ## 💻 Local Setup
 
 ### Running the Backend API
