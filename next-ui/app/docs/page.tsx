@@ -556,8 +556,25 @@ curl "${API_BASE}/api/qa/verify-handoff"`,
       </header>
 
       <main className="docs-container">
+        <div className="docs-layout">
+          <aside className="docs-side-rail docs-side-rail-left" aria-label="Documentation sections">
+            <div className="docs-rail-label">ON THIS PAGE</div>
+            <nav className="docs-section-nav">
+              <a href="#introduction" className="active">Introduction</a>
+              <a href="#handles">What Relay handles</a>
+              <a href="#sdks">Request examples</a>
+              <a href="#mcp">MCP integration</a>
+              <a href="#playground">Live API test</a>
+            </nav>
+            <div className="docs-rail-rule" />
+            <a className="docs-rail-link" href={`${API_BASE}/openapi.json`} target="_blank" rel="noreferrer">
+              <span>OpenAPI schema</span><span>↗</span>
+            </a>
+          </aside>
+
+          <div className="docs-content">
         {/* Hero Introduction */}
-        <section className="docs-hero">
+        <section className="docs-hero" id="introduction">
           <div className="docs-eyebrow">INTRODUCTION</div>
           <h1>Welcome to Relay CRM</h1>
           <p className="docs-subhead">
@@ -939,7 +956,7 @@ POST /mcp`}</pre>
         </section>
 
         {/* Live Playground against deployed Render instance */}
-        <section className="docs-playground-section">
+        <section className="docs-playground-section" id="playground">
           <div className="playground-header">
             <div>
               <div className="docs-eyebrow">LIVE PLAYGROUND</div>
@@ -992,6 +1009,27 @@ POST /mcp`}</pre>
             <Link href="/workspace">Open CRM App</Link>
           </div>
         </footer>
+          </div>
+
+          <aside className="docs-side-rail docs-side-rail-right" aria-label="API information">
+            <div className="docs-status-card">
+              <div className="docs-status-title"><i className="docs-pulse-dot" /> API STATUS</div>
+              <strong>{liveTestStatus === 200 ? "Operational" : "Ready to test"}</strong>
+              <span>relay-crm-api.onrender.com</span>
+            </div>
+            <div className="docs-rail-label">RESOURCES</div>
+            <nav className="docs-resource-nav">
+              <a href={`${API_BASE}/docs`} target="_blank" rel="noreferrer">Swagger UI <span>↗</span></a>
+              <a href={`${API_BASE}/redoc`} target="_blank" rel="noreferrer">ReDoc <span>↗</span></a>
+              <a href={`${API_BASE}/openapi.json`} target="_blank" rel="noreferrer">OpenAPI JSON <span>↗</span></a>
+            </nav>
+            <div className="docs-rail-note">
+              <span className="docs-rail-note-icon">✦</span>
+              <strong>Built for human approval</strong>
+              <p>Relay drafts the work. Your team decides what gets sent.</p>
+            </div>
+          </aside>
+        </div>
       </main>
     </div>
   );
