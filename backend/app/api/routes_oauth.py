@@ -17,7 +17,9 @@ router = APIRouter(tags=["OAuth"])
 
 
 def origin(request: Request) -> str:
-    return str(request.base_url).rstrip("/")
+    scheme = request.headers.get("x-forwarded-proto", request.url.scheme).split(",")[0].strip()
+    host = request.headers.get("host", request.url.netloc)
+    return f"{scheme}://{host}".rstrip("/")
 
 
 def resource_url(request: Request) -> str:
