@@ -1,0 +1,23 @@
+version: 1
+name: Relay dashboard and AI research checks
+run:
+  url: https://rohit-ats.github.io/Relay-CRM/
+testCases:
+  - id: dashboard-real-workspace
+    name: Dashboard uses the signed-in workspace
+    url: /Relay-CRM/workspace
+    steps:
+      - Open the Relay workspace route.
+      - If signed out, verify the email and password sign-in form and AUTH REQUIRED state; do not sign up or enter credentials. Confirm no CRM records are exposed.
+      - If already signed in, verify the Dashboard heading, pipeline/account/approval/handoff metrics, and that visible records are workspace records rather than sample or demo data.
+    criteria: The dashboard either securely gates signed-out visitors without exposing CRM records, or shows real signed-in workspace data and live status without demo records.
+  - id: ai-research-real-lead
+    name: Grounded AI research creates a reviewable workflow
+    url: /Relay-CRM/workspace
+    steps:
+      - Require an already signed-in Relay workspace and at least one real imported lead; do not create an account, use sample leads, or reset data. If either prerequisite is missing, stop and mark this case blocked.
+      - Open an existing imported lead's account workflow and choose Research + generate workflow.
+      - Wait for the agent result. Verify Gemini output is clearly labeled, research facts include clickable source URLs, unknowns or hypotheses are distinguished from facts, and the outreach plan has three editable steps awaiting human review.
+      - Return to Dashboard and refresh. Verify the account and pending review state remain visible from the workspace.
+      - Do not approve the plan, send email or LinkedIn messages, or change CRM fields. Capture any exact UI error if generation fails.
+    criteria: On a real imported lead, Relay completes grounded research and shows a source-linked, human-review draft that remains associated with the account after refresh; otherwise report blocked or failed with the observed reason.

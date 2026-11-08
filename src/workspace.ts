@@ -50,7 +50,17 @@ export const getApiBase = () => {
   }
   return "";
 };
-export const apiUrl = (path: string) => `${getApiBase()}${path}`;
+export const apiUrl = (path: string): string => {
+  const base = getApiBase();
+  if (!base) return path;
+  try {
+    const parsed = new URL(base);
+    if (!["http:", "https:"].includes(parsed.protocol)) throw new Error("API URL must use http or https.");
+    return `${parsed.toString().replace(/\/$/, "")}${path}`;
+  } catch {
+    throw new Error("The configured AI API URL is invalid. Set VITE_API_URL to a full http(s) URL, or leave it blank for the local API.");
+  }
+};
 
 async function workspaceAuthorization(): Promise<Record<string,string>> {
   try {

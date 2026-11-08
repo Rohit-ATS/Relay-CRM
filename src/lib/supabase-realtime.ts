@@ -5,7 +5,18 @@ export function getSupabaseBrowserClient(): SupabaseClient | null {
   if (browserClient !== undefined) return browserClient;
   const url = import.meta.env.VITE_SUPABASE_URL;
   const key = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
-  browserClient = url && key ? createClient(url, key) : null;
+  if (!url || !key) {
+    browserClient = null;
+    return browserClient;
+  }
+  try {
+    const parsed = new URL(url);
+    if (!["http:", "https:"].includes(parsed.protocol)) throw new Error("Supabase URL must use http or https.");
+    browserClient = createClient(parsed.toString().replace(/\/$/, ""), key);
+  } catch (error) {
+    console.warn("Relay could not initialize Supabase:", error instanceof Error ? error.message : error);
+    browserClient = null;
+  }
   return browserClient;
 }
 
