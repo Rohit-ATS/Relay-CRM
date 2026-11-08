@@ -359,6 +359,7 @@ export default function RelayApp({ screen, accountId = "northstar" }: { screen: 
     { href: "/workspace", label: "Accounts & pipeline", icon: "▦", key: "accounts" },
     { href: "/review", label: "Sequence review", icon: "✳", key: "review" },
     { href: "/handoffs", label: "Handoff queue", icon: "↗", key: "handoffs" },
+    { href: "/docs", label: "Documentation", icon: "▤", key: "docs" },
   ];
 
   return (
