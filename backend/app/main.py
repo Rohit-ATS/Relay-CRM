@@ -90,32 +90,32 @@ FAVICON_SVG_PATH = STATIC_DIR / "favicon.svg"
 OG_IMAGE_PATH = STATIC_DIR / "og-image.png"
 
 
-@app.get("/icon.png", include_in_schema=False)
-@app.get("/logo.png", include_in_schema=False)
-@app.get("/apple-touch-icon.png", include_in_schema=False)
-@app.get("/apple-touch-icon-precomposed.png", include_in_schema=False)
+@app.api_route("/icon.png", methods=["GET", "HEAD"], include_in_schema=False)
+@app.api_route("/logo.png", methods=["GET", "HEAD"], include_in_schema=False)
+@app.api_route("/apple-touch-icon.png", methods=["GET", "HEAD"], include_in_schema=False)
+@app.api_route("/apple-touch-icon-precomposed.png", methods=["GET", "HEAD"], include_in_schema=False)
 async def get_icon():
     if ICON_PATH.exists():
         return FileResponse(ICON_PATH, media_type="image/png")
     return Response(status_code=404)
 
 
-@app.get("/favicon.ico", include_in_schema=False)
+@app.api_route("/favicon.ico", methods=["GET", "HEAD"], include_in_schema=False)
 async def get_favicon():
     if FAVICON_PATH.exists():
         return FileResponse(FAVICON_PATH, media_type="image/x-icon")
     return Response(status_code=404)
 
 
-@app.get("/favicon.svg", include_in_schema=False)
+@app.api_route("/favicon.svg", methods=["GET", "HEAD"], include_in_schema=False)
 async def get_favicon_svg():
     if FAVICON_SVG_PATH.exists():
         return FileResponse(FAVICON_SVG_PATH, media_type="image/svg+xml")
     return Response(status_code=404)
 
 
-@app.get("/og-image.png", include_in_schema=False)
-@app.get("/banner.png", include_in_schema=False)
+@app.api_route("/og-image.png", methods=["GET", "HEAD"], include_in_schema=False)
+@app.api_route("/banner.png", methods=["GET", "HEAD"], include_in_schema=False)
 async def get_og_image():
     if OG_IMAGE_PATH.exists():
         return FileResponse(OG_IMAGE_PATH, media_type="image/png")

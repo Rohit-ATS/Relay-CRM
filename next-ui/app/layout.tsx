@@ -31,7 +31,7 @@ export const metadata: Metadata = {
     type: "website",
     images: [
       {
-        url: "https://relay-crm-api.onrender.com/og-image.png",
+        url: "https://rohit-ats.github.io/Relay-CRM/og-image.png",
         width: 1200,
         height: 630,
         alt: "Relay CRM — AI-native B2B sales workspace",
@@ -43,7 +43,7 @@ export const metadata: Metadata = {
     title: "Relay — CRM that moves with your sales",
     description:
       "Turn lead lists into connected CRM records, approved outreach plans, and clear human handoffs. AI-native CRM for founder-led sales teams.",
-    images: ["https://relay-crm-api.onrender.com/og-image.png"],
+    images: ["https://rohit-ats.github.io/Relay-CRM/og-image.png"],
   },
 };
 
