@@ -1,5 +1,6 @@
 import "./styles.css";
 import "../next-ui/app/landing.css";
+import "../next-ui/app/tour.css";
 import { appPath, landingDocsHref, refreshWorkflowFromRealtime, refreshWorkspaceFromStorage, renderWorkspace, toHref } from "./workspace";
 import { initializeSupabaseWorkspace } from "./lib/supabase-sync";
 

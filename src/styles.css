@@ -1098,6 +1098,11 @@ tbody tr:hover {
   border: 1px solid #fed7aa;
   box-shadow: 0 3px 10px rgba(255, 113, 53, 0.06);
 }
+.judge-bar-buttons {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
 .workspace-judge-bar span {
   font-size: 0.78rem;
   font-weight: 700;
