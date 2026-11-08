@@ -18,7 +18,235 @@ const esc = (v: unknown) => String(v ?? "").replace(/[&<>"']/g, c => ({ "&":"&am
 const money = (v?: number) => v == null ? "—" : new Intl.NumberFormat("en-US",{style:"currency",currency:"USD",maximumFractionDigits:0}).format(v);
 const id = (prefix: string) => `${prefix}_${crypto.randomUUID()}`;
 const stamp = () => new Date().toISOString();
-const appPath = () => location.pathname;
+export const getBasePath = () => location.pathname.startsWith("/Relay-CRM") ? "/Relay-CRM" : "";
+export const toHref = (p: string) => `${getBasePath()}${p.startsWith("/") ? p : `/${p}`}`;
+export const appPath = () => {
+  const base = getBasePath();
+  let p = location.pathname;
+  if (base && p.startsWith(base)) {
+    p = p.slice(base.length);
+  }
+  return p || "/";
+};
+
+let tourOpen = typeof window !== "undefined" && new URLSearchParams(location.search).get("tour") === "1";
+let tourStep = 1;
+let tourDockVisible = false;
+let tourMinimized = false;
+let tourCelebration = false;
+
+function renderTourOverlay(): string {
+  if (tourCelebration) {
+    return `
+      <div class="tour-modal-backdrop" id="tour-celebration-backdrop">
+        <div class="tour-welcome-modal" style="text-align: center; max-width: 560px;">
+          <div style="font-size: 42px; margin-bottom: 12px;">🏆</div>
+          <span class="tour-badge" style="background: #ecfdf5; color: #059669;">ALL 4 WORKFLOWS VERIFIED</span>
+          <h2>Outbound Loop Successfully Completed!</h2>
+          <p class="tour-intro">You’ve experienced the end-to-end Relay CRM loop: Ingestion ➔ Grounded Account Brief ➔ Human Approval ➔ Inbound Intent Analysis ➔ Warm Handoff Queue.</p>
+          <div style="background: #f9fafb; border: 1px solid #e5e7eb; border-radius: 12px; padding: 16px; text-align: left; margin-bottom: 24px; display: grid; gap: 8px; font-size: 13px;">
+            <div style="color: #059669; font-weight: 600;">✓ 01 · Lead Ingestion & Sourced Briefs Verified</div>
+            <div style="color: #059669; font-weight: 600;">✓ 02 · Human-in-the-Loop Sequence Approval Verified</div>
+            <div style="color: #059669; font-weight: 600;">✓ 03 · Inbound Signal Intent Detection Verified</div>
+            <div style="color: #059669; font-weight: 600;">✓ 04 · Automated Warm Handoff & Audit Trail Verified</div>
+          </div>
+          <div style="display: flex; gap: 10px; justify-content: center;">
+            <button class="tour-btn-primary" id="tour-celebration-close">Explore Full CRM Workspace ↗</button>
+          </div>
+        </div>
+      </div>
+    `;
+  }
+
+  if (tourOpen) {
+    return `
+      <div class="tour-modal-backdrop" id="tour-welcome-backdrop">
+        <div class="tour-welcome-modal">
+          <span class="tour-badge">✦ GUIDED DEMO TOUR · 2-MINUTE ONBOARDING</span>
+          <h2>Welcome to the Relay CRM Demo</h2>
+          <p class="tour-intro">Relay is an AI-native CRM for founder-led sales teams. Experience how the complete outbound loop functions without manual bookkeeping:</p>
+          <div class="tour-steps-grid">
+            <div class="tour-step-card">
+              <div class="tour-step-top"><span class="tour-step-num">01 · INGEST LEADS</span><span class="tour-step-icon">📥</span></div>
+              <b>Lead CSV Ingestion</b>
+              <p>Upload raw lists to generate structured Account, Contact, and Deal records automatically.</p>
+            </div>
+            <div class="tour-step-card">
+              <div class="tour-step-top"><span class="tour-step-num">02 · HUMAN IN THE LOOP</span><span class="tour-step-icon">✍️</span></div>
+              <b>Review Outreach Sequences</b>
+              <p>AI writes 3-touch emails tailored to pain points. You retain full approval before anything moves.</p>
+            </div>
+            <div class="tour-step-card">
+              <div class="tour-step-top"><span class="tour-step-num">03 · SIGNAL DETECTION</span><span class="tour-step-icon">⚡</span></div>
+              <b>Inbound Reply Analysis</b>
+              <p>Prospect shows interest. AI extracts intent and proposes advancing deal stage to Demo Scheduled.</p>
+            </div>
+            <div class="tour-step-card">
+              <div class="tour-step-top"><span class="tour-step-num">04 · WARM HANDOFF</span><span class="tour-step-icon">🤝</span></div>
+              <b>Handoff Task Queue</b>
+              <p>Auto-generates high-priority tasks with full buyer context and immutable audit trails.</p>
+            </div>
+          </div>
+          <div class="tour-modal-actions">
+            <span style="font-size: 12px; color: #6b7280;">Demo mode · Simulated actions safe to run</span>
+            <div class="tour-modal-buttons">
+              <button class="tour-btn-quiet" id="tour-welcome-skip">Skip & Explore</button>
+              <button class="tour-btn-primary" id="tour-welcome-start">Start Guided Tour ➔</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    `;
+  }
+
+  if (tourDockVisible) {
+    if (tourMinimized) {
+      return `
+        <div class="tour-dock-minimized" id="tour-dock-unminimize" title="Click to expand tour guide">
+          <i></i> <b>Tour: Step ${tourStep} of 4</b> <span>↗</span>
+        </div>
+      `;
+    }
+
+    const steps = [
+      {
+        num: 1,
+        title: "Step 1: Accounts & Ingestion",
+        desc: "Ingest CSV contacts and create linked Accounts, Contacts, and Opportunities with automatic fact labeling.",
+        actionLabel: "Go to Accounts",
+        actionPath: "/accounts"
+      },
+      {
+        num: 2,
+        title: "Step 2: Action Center & Approvals",
+        desc: "Review batch outreach sequences before they are recorded. No unapproved external messages are sent.",
+        actionLabel: "Go to Action Center",
+        actionPath: "/action-center"
+      },
+      {
+        num: 3,
+        title: "Step 3: Outreach Sequences & AI Drafts",
+        desc: "Personalized 3-step sequences with delay timing and grounded facts, verified by Gemini and Zod.",
+        actionLabel: "Go to Automations",
+        actionPath: "/automations"
+      },
+      {
+        num: 4,
+        title: "Step 4: Contextual Inbound & Warm Handoffs",
+        desc: "Simulate prospect replies, capture buyer intent, update deal stages, and auto-assign follow-up tasks.",
+        actionLabel: "Go to Tasks",
+        actionPath: "/tasks"
+      }
+    ];
+    const cur = steps[tourStep - 1]!;
+    const pct = (tourStep / 4) * 100;
+
+    return `
+      <div class="tour-dock">
+        <div class="tour-dock-bar">
+          <div class="tour-dock-progress" style="width: ${pct}%"></div>
+        </div>
+        <div class="tour-dock-header">
+          <span><i></i> STEP ${tourStep} OF 4</span>
+          <div class="tour-dock-controls">
+            <button class="tour-dock-btn" id="tour-dock-minimize" title="Minimize">−</button>
+            <button class="tour-dock-btn" id="tour-dock-close" title="Close tour">×</button>
+          </div>
+        </div>
+        <div class="tour-dock-body">
+          <div class="tour-dock-title">${cur.title}</div>
+          <div class="tour-dock-desc">${cur.desc}</div>
+          <button class="tour-dock-action-btn" id="tour-dock-action" data-path="${cur.actionPath}">
+            ${cur.actionLabel} ➔
+          </button>
+        </div>
+        <div class="tour-dock-footer">
+          <button class="tour-reset-btn" id="tour-dock-reset">↺ Reset</button>
+          <div class="tour-dock-nav">
+            <button class="tour-nav-btn" id="tour-dock-prev" ${tourStep === 1 ? "disabled" : ""}>←</button>
+            <button class="tour-nav-btn tour-nav-next" id="tour-dock-next">
+              ${tourStep === 4 ? "Finish Tour ✓" : "Next →"}
+            </button>
+          </div>
+        </div>
+      </div>
+    `;
+  }
+
+  return "";
+}
+
+function attachTourListeners(app: HTMLDivElement): void {
+  document.querySelectorAll<HTMLButtonElement>("#tour-topbar-pill-btn").forEach(btn => {
+    btn.addEventListener("click", () => {
+      tourOpen = true;
+      renderWorkspace(app);
+    });
+  });
+
+  document.querySelector<HTMLButtonElement>("#tour-welcome-skip")?.addEventListener("click", () => {
+    tourOpen = false;
+    renderWorkspace(app);
+  });
+
+  document.querySelector<HTMLButtonElement>("#tour-welcome-start")?.addEventListener("click", () => {
+    tourOpen = false;
+    tourDockVisible = true;
+    tourStep = 1;
+    renderWorkspace(app);
+  });
+
+  document.querySelector<HTMLButtonElement>("#tour-dock-minimize")?.addEventListener("click", () => {
+    tourMinimized = true;
+    renderWorkspace(app);
+  });
+
+  document.querySelector<HTMLDivElement>("#tour-dock-unminimize")?.addEventListener("click", () => {
+    tourMinimized = false;
+    renderWorkspace(app);
+  });
+
+  document.querySelector<HTMLButtonElement>("#tour-dock-close")?.addEventListener("click", () => {
+    tourDockVisible = false;
+    renderWorkspace(app);
+  });
+
+  document.querySelector<HTMLButtonElement>("#tour-dock-action")?.addEventListener("click", (e) => {
+    const targetPath = (e.currentTarget as HTMLButtonElement).dataset.path;
+    if (targetPath) {
+      history.pushState(null, "", toHref(targetPath));
+      renderWorkspace(app);
+    }
+  });
+
+  document.querySelector<HTMLButtonElement>("#tour-dock-prev")?.addEventListener("click", () => {
+    if (tourStep > 1) {
+      tourStep--;
+      renderWorkspace(app);
+    }
+  });
+
+  document.querySelector<HTMLButtonElement>("#tour-dock-next")?.addEventListener("click", () => {
+    if (tourStep < 4) {
+      tourStep++;
+      renderWorkspace(app);
+    } else {
+      tourDockVisible = false;
+      tourCelebration = true;
+      renderWorkspace(app);
+    }
+  });
+
+  document.querySelector<HTMLButtonElement>("#tour-celebration-close")?.addEventListener("click", () => {
+    tourCelebration = false;
+    renderWorkspace(app);
+  });
+
+  document.querySelector<HTMLButtonElement>("#tour-dock-reset")?.addEventListener("click", () => {
+    data = resetData();
+    renderWorkspace(app);
+  });
+}
 
 export function renderWorkspace(app: HTMLDivElement): void {
   const path = appPath();
@@ -31,7 +259,7 @@ export function renderWorkspace(app: HTMLDivElement): void {
   if (path === "/notes") return notes(app);
   if (path === "/reports") return reports(app);
   if (path === "/automations") return review(app);
-  if (path === "/documentation") { location.href = "/docs"; return; }
+  if (path === "/documentation") { location.href = toHref("/docs"); return; }
   if (path === "/settings") return settings(app);
   if (path === "/logout") return logout(app);
   dashboard(app);
@@ -45,11 +273,14 @@ export function refreshWorkspaceFromStorage(app: HTMLDivElement): void {
 
 function frame(app: HTMLDivElement, active: string, html: string): void {
   const nav = (key:string,label:string,icon:string,href:string,count=0) => `<a class="${active===key?"active":""}" href="${href}"><i>${icon}</i>${label}${count?`<span>${count}</span>`:""}</a>`;
-  app.innerHTML = `<main class="workspace-shell"><aside class="workspace-sidebar"><a class="workspace-brand" href="/dashboard"><i>✳</i> relay<span>.</span></a><a class="quick-action" href="/action-center"><i>⌘</i> Action center <kbd>${data.accounts.filter(a=>!data.sequences.some(s=>s.accountId===a.id&&s.status==="approved")).length}</kbd></a><small class="workspace-label">WORKSPACE</small><nav class="app-nav">${nav("dashboard","Dashboard","⌂","/dashboard")}${nav("action-center","Action center","✦","/action-center",data.accounts.filter(a=>!data.sequences.some(s=>s.accountId===a.id&&s.status==="approved")).length)}${nav("accounts","Accounts","▤","/accounts")}${nav("pipeline","Pipeline","▥","/pipeline")}${nav("people","People","♙","/people")}${nav("tasks","Tasks","☑","/tasks",data.handoffs.filter(h=>h.status==="open").length)}${nav("notes","Notes","▧","/notes")}<span class="nav-section-label">INSIGHTS</span>${nav("reports","Reports","▥","/reports")}${nav("automations","Automations","▷","/automations")}${nav("docs","Documentation","▤","/docs")}</nav><div class="sidebar-bottom">${nav("settings","Settings","⚙","/settings")}${nav("logout","Log out","⇥","/logout")}<small>${getCloudStatus().connected ? "LIVE WORKSPACE · SUPABASE" : "DEMO WORKSPACE · DATA SAVED LOCALLY"}</small></div></aside><section class="workspace-main"><header class="workspace-mobile-head"><a class="workspace-brand" href="/dashboard"><i>✳</i> relay<span>.</span></a><select aria-label="Navigate" id="mobile-nav"><option value="/dashboard">Dashboard</option><option value="/action-center">Action center</option><option value="/accounts">Accounts</option><option value="/pipeline">Pipeline</option><option value="/people">People</option><option value="/tasks">Tasks</option><option value="/notes">Notes</option><option value="/reports">Reports</option><option value="/automations">Automations</option><option value="/docs">Documentation</option><option value="/settings">Settings</option><option value="/logout">Log out</option></select></header>${html}</section></main>`;
+  app.innerHTML = `<main class="workspace-shell"><aside class="workspace-sidebar"><a class="workspace-brand" href="/dashboard"><i>✳</i> relay<span>.</span></a><a class="quick-action" href="/action-center"><i>⌘</i> Action center <kbd>${data.accounts.filter(a=>!data.sequences.some(s=>s.accountId===a.id&&s.status==="approved")).length}</kbd></a><small class="workspace-label">WORKSPACE</small><nav class="app-nav">${nav("dashboard","Dashboard","⌂","/dashboard")}${nav("action-center","Action center","✦","/action-center",data.accounts.filter(a=>!data.sequences.some(s=>s.accountId===a.id&&s.status==="approved")).length)}${nav("accounts","Accounts","▤","/accounts")}${nav("pipeline","Pipeline","▥","/pipeline")}${nav("people","People","♙","/people")}${nav("tasks","Tasks","☑","/tasks",data.handoffs.filter(h=>h.status==="open").length)}${nav("notes","Notes","▧","/notes")}<span class="nav-section-label">INSIGHTS</span>${nav("reports","Reports","▥","/reports")}${nav("automations","Automations","▷","/automations")}${nav("docs","Documentation","▤","/docs")}</nav><div class="sidebar-bottom">${nav("settings","Settings","⚙","/settings")}${nav("logout","Log out","⇥","/logout")}<small>${getCloudStatus().connected ? "LIVE WORKSPACE · SUPABASE" : "DEMO WORKSPACE · DATA SAVED LOCALLY"}</small></div></aside><section class="workspace-main"><header class="workspace-mobile-head"><a class="workspace-brand" href="/dashboard"><i>✳</i> relay<span>.</span></a><select aria-label="Navigate" id="mobile-nav"><option value="/dashboard">Dashboard</option><option value="/action-center">Action center</option><option value="/accounts">Accounts</option><option value="/pipeline">Pipeline</option><option value="/people">People</option><option value="/tasks">Tasks</option><option value="/notes">Notes</option><option value="/reports">Reports</option><option value="/automations">Automations</option><option value="/docs">Documentation</option><option value="/settings">Settings</option><option value="/logout">Log out</option></select></header>${html}</section></main>${renderTourOverlay()}`;
   document.querySelector<HTMLSelectElement>("#mobile-nav")?.addEventListener("change",e=>{location.href=(e.target as HTMLSelectElement).value});
   for (const selector of ["#reset-data", "#reset-mobile"]) document.querySelector<HTMLButtonElement>(selector)?.addEventListener("click",()=>{data=resetData();preview=null;importText="";sequence=undefined;proposal=undefined;inputError="";renderWorkspace(app);});
+  attachTourListeners(app);
 }
-function heading(kicker: string,title: string,desc: string, right=""): string { return `<header class="topbar"><div><p class="eyebrow">${kicker}</p><h1>${title}<span class="orange">.</span></h1><p class="subhead">${desc}</p></div>${right}</header>`; }
+function heading(kicker: string,title: string,desc: string, right=""): string {
+  return `<header class="topbar"><div><p class="eyebrow">${kicker}</p><h1>${title}<span class="orange">.</span></h1><p class="subhead">${desc}</p></div><div style="display:flex;align-items:center;gap:10px;margin-left:auto;"><button id="tour-topbar-pill-btn" class="tour-topbar-pill"><i></i> Guided Demo Tour</button>${right}</div></header>`;
+}
 
 function pendingAccounts(): Account[] { return data.accounts.filter(a=>!data.sequences.some(s=>s.accountId===a.id&&s.status==="approved")); }
 function dashboard(app: HTMLDivElement, focusActions=false): void {

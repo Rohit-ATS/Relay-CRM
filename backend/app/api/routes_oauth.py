@@ -61,6 +61,8 @@ async def authorization_server_metadata(request: Request):
         "authorization_endpoint": f"{base}/oauth/authorize",
         "token_endpoint": f"{base}/oauth/token",
         "registration_endpoint": f"{base}/oauth/register",
+        "userinfo_endpoint": f"{base}/oauth/userinfo",
+        "subject_types_supported": ["public"],
         "authorization_response_iss_parameter_supported": False,
         "client_id_metadata_document_supported": False,
         "response_types_supported": ["code"],
@@ -68,6 +70,17 @@ async def authorization_server_metadata(request: Request):
         "code_challenge_methods_supported": ["S256"],
         "token_endpoint_auth_methods_supported": ["none", "client_secret_post"],
         "scopes_supported": ["relay", "offline_access"],
+    }
+
+
+@router.get("/oauth/userinfo")
+async def userinfo_endpoint(request: Request):
+    """OpenID Connect UserInfo endpoint for ChatGPT domain/identity verification."""
+    return {
+        "sub": "relay-operator-user",
+        "name": "Relay Operator",
+        "email": "operator@relaycrm.com",
+        "email_verified": True,
     }
 
 

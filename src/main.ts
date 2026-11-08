@@ -1,5 +1,6 @@
 import "./styles.css";
 import "../next-ui/app/landing.css";
+import "../next-ui/app/tour.css";
 import { refreshWorkspaceFromStorage, renderWorkspace } from "./workspace";
 import { initializeSupabaseWorkspace } from "./lib/supabase-sync";
 
@@ -19,10 +20,30 @@ function renderLanding(): void {
     </main>`;
 }
 
-if (window.location.pathname === "/landing") renderLanding();
+if (window.location.pathname === "/landing" || window.location.pathname.endsWith("/landing")) renderLanding();
 else {
-  window.addEventListener("relay:cloud-status", () => { if (window.location.pathname === "/settings") renderWorkspace(app); });
+  window.addEventListener("popstate", () => renderWorkspace(app));
+  window.addEventListener("relay:cloud-status", () => {
+    const path = window.location.pathname;
+    if (path === "/settings" || path.endsWith("/settings")) renderWorkspace(app);
+  });
   window.addEventListener("relay:cloud-data-updated", () => refreshWorkspaceFromStorage(app));
+
+  document.addEventListener("click", (e) => {
+    const target = (e.target as HTMLElement).closest("a");
+    if (!target) return;
+    const href = target.getAttribute("href");
+    if (!href || href.startsWith("http") || href.startsWith("#") || href.startsWith("mailto:")) return;
+    if (href === "/docs" || href.endsWith("/docs")) return; // Let static docs page load directly
+
+    e.preventDefault();
+    const basePath = location.pathname.startsWith("/Relay-CRM") ? "/Relay-CRM" : "";
+    const cleanHref = href.startsWith(basePath) ? href.slice(basePath.length) : href;
+    const targetUrl = `${basePath}${cleanHref.startsWith("/") ? cleanHref : `/${cleanHref}`}`;
+    history.pushState(null, "", targetUrl);
+    renderWorkspace(app);
+  });
+
   renderWorkspace(app);
   void initializeSupabaseWorkspace().then(() => renderWorkspace(app));
 }
