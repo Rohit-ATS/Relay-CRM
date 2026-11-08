@@ -109,7 +109,7 @@ export function parseCsv(text: string): CsvPreview {
 
 export const sampleCsv = [
   [...supportedCsvHeaders].join(","),
-  "Northwind Analytics,northwind.example,https://linkedin.com/company/northwind-analytics,Avery Chen,VP of Sales,avery@example.test,CRM evaluation,prospecting,24000,Review current sales workflow",
-  "Juniper Cloud,juniper.example,https://linkedin.com/company/juniper-cloud,Jordan Lee,Founder,jordan@example.test,Pipeline visibility,engaged,18000,Schedule a discovery call",
-  "Copperline Health,copperline.example,,Morgan Patel,Operations Director,morgan@example.test,Account workflow review,prospecting,32000,Confirm evaluation timeline",
+  "Northwind Analytics,Avery Chen,CRM evaluation,northwind.example,https://linkedin.com/company/northwind-analytics,VP of Sales,avery@example.test,prospecting,24000,Review current sales workflow",
+  "Juniper Cloud,Jordan Lee,Pipeline visibility,juniper.example,https://linkedin.com/company/juniper-cloud,Founder,jordan@example.test,engaged,18000,Schedule a discovery call",
+  "Copperline Health,Morgan Patel,Account workflow review,copperline.example,,Operations Director,morgan@example.test,prospecting,32000,Confirm evaluation timeline",
 ].join("\n");

@@ -714,15 +714,58 @@ tbody tr:hover {
   background: #fffaf7;
 }
 .dropzone textarea {
+  position: relative;
+  z-index: 1;
+  display: block;
   width: 100%;
-  min-height: 138px;
-  padding: 16px;
+  min-height: 180px;
+  padding: 18px;
   border: 0;
   outline: 0;
   resize: vertical;
   background: transparent;
   color: var(--ink);
 }
+.dropzone-copy {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  padding: 18px;
+  color: var(--muted);
+  text-align: center;
+  pointer-events: none;
+}
+.dropzone-copy strong { color: var(--ink-secondary); font-size: 14px; }
+.dropzone-copy .muted { font-size: 12px; }
+.upload-icon { color: var(--orange); font-size: 24px; line-height: 1; }
+.dropzone.has-content .dropzone-copy { display: none; }
+.section-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  margin-bottom: 12px;
+}
+.section-heading > div:first-child { min-width: 0; }
+.actions { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
+.import-card .actions { justify-content: flex-end; }
+.import-card .actions .button { min-height: 40px; font-size: 12px; }
+.file-button { position: relative; overflow: hidden; }
+.file-button input[type="file"] {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  padding: 0;
+  opacity: 0;
+  cursor: pointer;
+}
+.file-button:focus-within { outline: 3px solid rgba(243, 111, 55, .28); outline-offset: 2px; }
 
 /* Alerts */
 .alert {
@@ -757,6 +800,12 @@ tbody tr:hover {
 .danger-zone {
   border-color: #fed7aa;
   background: #fffaf7;
+}
+
+@media (max-width: 760px) {
+  .section-heading { align-items: stretch; }
+  .import-card .actions { justify-content: stretch; }
+  .import-card .actions .button { flex: 1 1 145px; }
 }
 
 /* Forms */

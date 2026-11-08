@@ -21,8 +21,8 @@ function appUrl(): string { return (process.env.RELAY_APP_URL ?? "http://localho
 function callbackUri(): string { return process.env.LINKEDIN_REDIRECT_URI ?? ""; }
 function getAdminClient() {
   const url = process.env.SUPABASE_URL;
-  const secret = process.env.SUPABASE_SECRET_KEY;
-  if (!url || !secret) throw new Error("Add SUPABASE_URL and the server-only SUPABASE_SECRET_KEY to enable secure LinkedIn token storage.");
+  const secret = process.env.SUPABASE_SECRET_KEY ?? process.env.SUPABASE_PRIVATE_KEY;
+  if (!url || !secret) throw new Error("Add SUPABASE_URL and a server-only SUPABASE_SECRET_KEY (or SUPABASE_PRIVATE_KEY) to enable secure LinkedIn token storage.");
   return createClient(url, secret, { auth: { persistSession: false, autoRefreshToken: false } });
 }
 function tokenKey(): Buffer {
@@ -75,7 +75,8 @@ async function getWorkspaceAuth(request: IncomingMessage): Promise<WorkspaceAuth
   const auth = await getAuthenticatedSupabase(webRequest);
   if (!auth) return null;
   const { data, error } = await auth.client.from("workspace_members").select("workspace_id").eq("user_id", auth.user.id).limit(1).maybeSingle();
-  if (error || !data?.workspace_id) return null;
+  if (error) throw new Error(`Could not read Relay workspace membership: ${error.message}. Check the workspace migrations and authenticated read policy.`);
+  if (!data?.workspace_id) throw new Error("Your Supabase session is valid, but it has no Relay workspace membership. Apply migrations 202611070001_relay_core.sql and 202611070003_backfill_relay_workspaces.sql, then sign out and back in.");
   return { userId: auth.user.id, workspaceId: data.workspace_id as string };
 }
 async function readBody(request: IncomingMessage): Promise<unknown> {
@@ -84,8 +85,10 @@ async function readBody(request: IncomingMessage): Promise<unknown> {
   return JSON.parse(Buffer.concat(chunks).toString("utf8"));
 }
 function missingIntegrationEnv(): string[] {
-  return ["LINKEDIN_CLIENT_ID", "LINKEDIN_CLIENT_SECRET", "LINKEDIN_REDIRECT_URI", "LINKEDIN_OAUTH_STATE_SECRET", "LINKEDIN_TOKEN_ENCRYPTION_KEY", "SUPABASE_URL", "SUPABASE_SECRET_KEY"]
+  const missing = ["LINKEDIN_CLIENT_ID", "LINKEDIN_CLIENT_SECRET", "LINKEDIN_REDIRECT_URI", "LINKEDIN_OAUTH_STATE_SECRET", "LINKEDIN_TOKEN_ENCRYPTION_KEY", "SUPABASE_URL"]
     .filter((name) => !process.env[name]);
+  if (!process.env.SUPABASE_SECRET_KEY && !process.env.SUPABASE_PRIVATE_KEY) missing.push("SUPABASE_SECRET_KEY or SUPABASE_PRIVATE_KEY");
+  return missing;
 }
 function integrationConfigured(): boolean {
   return missingIntegrationEnv().length === 0;

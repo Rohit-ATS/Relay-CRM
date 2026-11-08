@@ -5,8 +5,13 @@ export type AgentResult<T> = { provider: "gemini"; output: T };
 
 export type GroundingSource = { title: string; url: string; domain?: string };
 
+/** Canonical name is GEMINI_API_KEY; also accept the key name already in the user's root .env.local. */
+export function getGeminiApiKey(): string | undefined {
+  return process.env.GEMINI_API_KEY ?? process.env["GEMINI-API-KEY"] ?? process.env["Gemini-API-Key"];
+}
+
 export async function generateValidated<T>(prompt: string, schema: z.ZodType<T>): Promise<T> {
-  const apiKey = process.env.GEMINI_API_KEY;
+  const apiKey = getGeminiApiKey();
   if (!apiKey) throw new Error("GEMINI_API_KEY is not configured");
   const ai = new GoogleGenAI({ apiKey });
   const response = await ai.models.generateContent({
@@ -22,7 +27,7 @@ export async function generateValidated<T>(prompt: string, schema: z.ZodType<T>)
 }
 
 export async function generateGroundedValidated<T>(prompt: string, schema: z.ZodType<T>): Promise<{ output: T; sources: GroundingSource[] }> {
-  const apiKey = process.env.GEMINI_API_KEY;
+  const apiKey = getGeminiApiKey();
   if (!apiKey) throw new Error("GEMINI_API_KEY is not configured on the Relay server. Add it to the repo-root .env.local and restart npm run server.");
   const ai = new GoogleGenAI({ apiKey });
   const response = await ai.models.generateContent({

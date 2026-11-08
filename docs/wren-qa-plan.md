@@ -42,6 +42,23 @@ Wren is Seldon's browser-based behavioral QA agent. Run these checks from the Wr
 
 Report each workflow as **Pass**, **Fail**, or **Blocked**. A pass requires Wren's recorded browser evidence to show the expected UI/data. API responses, seeded fixtures, a successful build, and Relay's legacy `/api/qa/verify-*` endpoints do not count as Wren results. Keep screenshots and recordings in Wren's run artifacts; do not commit workspace credentials, API keys, prospect data, or private evidence to this repository.
 
-## API-key note
+## Connect Seldon MCP to Codex
 
-Relay does not currently call a Wren API. Seldon's public product guidance describes creating natural-language browser tests, running them, and reviewing recorded evidence. The Wren docs URL redirects to the authenticated app, so no public run-creation API contract was available to implement or verify here. Do not add a `WREN_API_KEY` integration until Seldon supplies the supported endpoint, authentication format, and request/response contract.
+Seldon's hosted MCP exposes tools for Codex to validate and edit `seldon.yml`, start browser QA runs, and retrieve reports and evidence. It is a QA client connection; Relay's application server does not call this MCP or need a `WREN_API_KEY`.
+
+1. Make the Seldon API key available to the shell that launches Codex, without putting it in the repository or browser environment:
+
+   ```bash
+   export SELDON_API_KEY='seldon_…'
+   ```
+
+2. Register the hosted Streamable HTTP server. Seldon accepts a bearer token, so Codex can read the key from the environment variable:
+
+   ```bash
+   codex mcp add seldon --url https://app.seldon.com/mcp --bearer-token-env-var SELDON_API_KEY
+   codex mcp list
+   ```
+
+3. Restart the Codex session so it discovers the server tools. Ask Codex to create or validate the Relay baseline, run it against a browser-accessible deployment, and retrieve both the summary and per-case report. The Wren/Seldon MCP tools are not available in a session until the MCP server is configured and loaded.
+
+The API key authenticates access to Seldon and stays outside the app. Relay still needs an accessible signed-in workspace for browser tests. Treat Wren's captured run artifacts as QA evidence; a successful MCP connection alone is not a pass. Seldon's MCP documentation: [Connect to the Seldon MCP server](https://app.seldon.com/docs/developers/connect-mcp).
