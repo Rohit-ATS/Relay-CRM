@@ -256,7 +256,7 @@ export type GeneratedOutreachStep = {
 };
 
 export type GeneratedSequenceResult = {
-  mode: "gemini";
+  mode: "gemini" | "provider" | "demo_fixture";
   brief: string;
   facts: SourcedFact[];
   assumptions: string[];
@@ -279,7 +279,7 @@ const generatedOutreachStepSchema = z.object({
 });
 
 export const generatedSequenceResultSchema = z.object({
-  mode: z.literal("gemini"),
+  mode: z.enum(["gemini", "provider", "demo_fixture"]),
   brief: z.string().min(1),
   facts: z.array(sourcedFactSchema),
   assumptions: z.array(z.string()),
