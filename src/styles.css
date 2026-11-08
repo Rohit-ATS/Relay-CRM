@@ -286,6 +286,25 @@ h1, h2, h3, h4, b, strong { font-family: var(--font-heading); }
   background: #fffaf7;
   transform: translateY(-1px);
 }
+.file-button {
+  position: relative;
+  overflow: hidden;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.file-button input[type="file"],
+#csv-file {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  opacity: 0;
+  cursor: pointer;
+  font-size: 0;
+}
 
 /* Stat Grid */
 .stat-grid, .dashboard-stats {
@@ -374,6 +393,20 @@ h1, h2, h3, h4, b, strong { font-family: var(--font-heading); }
 .panel-head-row .muted, .section-heading .muted, .panel .muted {
   color: var(--muted);
   font-size: 12px;
+}
+.section-heading {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 16px;
+  flex-wrap: wrap;
+  margin-bottom: 14px;
+}
+.section-heading .actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
 }
 .text-link {
   color: var(--orange);
