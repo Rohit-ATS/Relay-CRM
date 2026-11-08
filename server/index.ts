@@ -5,6 +5,7 @@ import { runLeadResearch } from "./agents/lead-research";
 import { runCRMSteward } from "./agents/crm-steward";
 import { handleLinkedInIntegration } from "./linkedin-integration";
 import { authenticatedWorkspace } from "./auth";
+import { getGeminiApiKey } from "./agents/gemini";
 
 // Vite loads .env.local for the frontend, but this standalone API server is a
 // separate process. Load the same repo-root env files here without exposing
@@ -33,7 +34,7 @@ createServer(async (request, response) => {
   }
   if (request.method === "GET" && path === "/api/integrations/status") {
     send(response, 200, {
-      gemini: Boolean(process.env.GEMINI_API_KEY),
+      gemini: Boolean(getGeminiApiKey()),
       supabase: Boolean(process.env.SUPABASE_URL && process.env.SUPABASE_PUBLISHABLE_KEY),
       persistence: "Supabase Auth + RLS required for persistent workspace routes",
     });
@@ -45,7 +46,7 @@ createServer(async (request, response) => {
   }
   try {
     const workspace = await authenticatedWorkspace(request);
-    if (!workspace) { send(response, 401, { error: "Sign in to an authorized Relay workspace before running agents." }); return; }
+    if (!workspace) { send(response, 401, { error: "No valid Relay Supabase session was received. Sign in again from Settings." }); return; }
     const body = await readJson(request);
     const result = path === "/api/sequence"
       ? await generateSequence(body)

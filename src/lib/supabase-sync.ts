@@ -283,6 +283,15 @@ export async function initializeSupabaseWorkspace(): Promise<void> {
   else if (session?.user) await connectSession(session.user);
 }
 
+export async function reconnectCloudWorkspace(): Promise<void> {
+  const client = getSupabaseBrowserClient();
+  if (!client) throw new Error("Supabase is not configured.");
+  const { data: { session }, error } = await client.auth.getSession();
+  if (error) throw error;
+  if (!session?.user) throw new Error("There is no active Supabase session. Sign in from Settings.");
+  await connectSession(session.user);
+}
+
 export async function signInWithPasswordCloud(email: string, password: string): Promise<void> {
   const client = getSupabaseBrowserClient();
   if (!client) throw new Error("Supabase is not configured. Add the browser URL and publishable key to .env.local.");
