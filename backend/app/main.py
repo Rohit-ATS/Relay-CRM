@@ -1,7 +1,8 @@
 from contextlib import AsyncExitStack, asynccontextmanager
-from fastapi import FastAPI, status
+from pathlib import Path
+from fastapi import FastAPI, Request, status
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
+from fastapi.responses import FileResponse, JSONResponse, Response
 
 from app.core.config import settings
 from app.db.session import init_db, async_session_maker
@@ -81,6 +82,27 @@ app.include_router(oauth_router)
 # deployed API URL. It is protected independently from the public CRM API.
 app.mount("/mcp", mcp_http_app)
 app.mount("/mcp-legacy", mcp_sse_app)
+
+STATIC_DIR = Path(__file__).resolve().parent / "static"
+ICON_PATH = STATIC_DIR / "icon.png"
+FAVICON_PATH = STATIC_DIR / "favicon.ico"
+
+
+@app.get("/icon.png", include_in_schema=False)
+@app.get("/logo.png", include_in_schema=False)
+@app.get("/apple-touch-icon.png", include_in_schema=False)
+@app.get("/apple-touch-icon-precomposed.png", include_in_schema=False)
+async def get_icon():
+    if ICON_PATH.exists():
+        return FileResponse(ICON_PATH, media_type="image/png")
+    return Response(status_code=404)
+
+
+@app.get("/favicon.ico", include_in_schema=False)
+async def get_favicon():
+    if FAVICON_PATH.exists():
+        return FileResponse(FAVICON_PATH, media_type="image/x-icon")
+    return Response(status_code=404)
 
 
 @app.get("/", tags=["Health"])

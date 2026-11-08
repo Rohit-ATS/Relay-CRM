@@ -43,7 +43,7 @@ class MCPBearerAuthMiddleware:
         body = f'{{"detail":"{message}"}}'.encode()
         challenge = "Bearer"
         if resource:
-            challenge += f' resource_metadata="{resource}" scope="relay"'
+            challenge += f' resource_metadata="{resource}", scope="relay"'
         await send({
             "type": "http.response.start",
             "status": status_code,

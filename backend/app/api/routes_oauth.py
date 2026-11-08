@@ -11,7 +11,16 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.config import settings
 from app.db.models import OAuthAuthorizationCode, OAuthClient
 from app.db.session import get_db
-from app.oauth import create_access_token, hash_value, normalize_resource, pkce_valid, random_id, redirect_with_code
+from app.oauth import (
+    create_access_token,
+    create_refresh_token,
+    hash_value,
+    normalize_resource,
+    pkce_valid,
+    random_id,
+    redirect_with_code,
+    verify_refresh_token,
+)
 
 router = APIRouter(tags=["OAuth"])
 
@@ -27,6 +36,7 @@ def resource_url(request: Request) -> str:
 
 
 @router.get("/.well-known/oauth-protected-resource")
+@router.get("/.well-known/oauth-protected-resource/")
 @router.get("/.well-known/oauth-protected-resource/mcp")
 @router.get("/.well-known/oauth-protected-resource/mcp/")
 async def protected_resource_metadata(request: Request):
@@ -34,13 +44,16 @@ async def protected_resource_metadata(request: Request):
     return {
         "resource": resource_url(request),
         "authorization_servers": [base],
-        "scopes_supported": ["relay"],
+        "scopes_supported": ["relay", "offline_access"],
         "bearer_methods_supported": ["header"],
-        "resource_documentation": f"{base}/docs",
+        "resource_documentation": f"{base}/documentation",
     }
 
 
 @router.get("/.well-known/oauth-authorization-server")
+@router.get("/.well-known/oauth-authorization-server/")
+@router.get("/.well-known/openid-configuration")
+@router.get("/.well-known/openid-configuration/")
 async def authorization_server_metadata(request: Request):
     base = origin(request)
     return {
@@ -51,51 +64,63 @@ async def authorization_server_metadata(request: Request):
         "authorization_response_iss_parameter_supported": False,
         "client_id_metadata_document_supported": False,
         "response_types_supported": ["code"],
-        "grant_types_supported": ["authorization_code"],
+        "grant_types_supported": ["authorization_code", "refresh_token"],
         "code_challenge_methods_supported": ["S256"],
-        "token_endpoint_auth_methods_supported": ["none"],
-        "scopes_supported": ["relay"],
+        "token_endpoint_auth_methods_supported": ["none", "client_secret_post"],
+        "scopes_supported": ["relay", "offline_access"],
     }
 
 
 class ClientRegistration(BaseModel):
     client_name: str = Field(default="MCP client", max_length=255)
     redirect_uris: list[str] = Field(min_length=1, max_length=10)
-    grant_types: list[str] = ["authorization_code"]
+    grant_types: list[str] = ["authorization_code", "refresh_token"]
     response_types: list[str] = ["code"]
     scope: str | None = None
     token_endpoint_auth_method: str = "none"
 
+    model_config = {"extra": "ignore"}
+
 
 @router.post("/oauth/register")
 async def register_client(payload: ClientRegistration, db: AsyncSession = Depends(get_db)):
-    if payload.grant_types != ["authorization_code"] or payload.response_types != ["code"]:
-        raise HTTPException(status_code=400, detail="Only authorization_code is supported")
-    if payload.token_endpoint_auth_method != "none":
-        raise HTTPException(status_code=400, detail="Only public PKCE clients are supported")
+    # Validate redirect URIs
     for uri in payload.redirect_uris:
         parsed = urlparse(uri)
         if parsed.scheme not in {"https", "http"} or not parsed.netloc:
             raise HTTPException(status_code=400, detail="redirect_uris must be absolute HTTP(S) URLs")
+
     client_id = random_id("relay_client")
     client_id_issued_at = int(datetime.now(timezone.utc).timestamp())
+    client_secret = None
+
+    if payload.token_endpoint_auth_method in {"client_secret_post", "client_secret_basic"}:
+        client_secret = random_id("relay_secret")
+
     db.add(OAuthClient(
         client_id=client_id,
+        client_secret=client_secret,
         client_name=payload.client_name,
         redirect_uris=payload.redirect_uris,
-        token_endpoint_auth_method="none",
+        token_endpoint_auth_method=payload.token_endpoint_auth_method or "none",
     ))
     await db.commit()
-    return {
+
+    resp = {
         "client_id": client_id,
         "client_id_issued_at": client_id_issued_at,
         "client_name": payload.client_name,
         "redirect_uris": payload.redirect_uris,
-        "grant_types": ["authorization_code"],
-        "response_types": ["code"],
+        "grant_types": payload.grant_types or ["authorization_code", "refresh_token"],
+        "response_types": payload.response_types or ["code"],
         "scope": payload.scope or "relay",
-        "token_endpoint_auth_method": "none",
+        "token_endpoint_auth_method": payload.token_endpoint_auth_method or "none",
     }
+    if client_secret:
+        resp["client_secret"] = client_secret
+        resp["client_secret_expires_at"] = 0
+
+    return resp
 
 
 @router.get("/oauth/authorize", response_class=HTMLResponse)
@@ -117,7 +142,7 @@ async def authorize_page(
     if (
         not code_challenge
         or code_challenge_method != "S256"
-        or normalize_resource(resource) != normalize_resource(resource_url(request))
+        or (resource and normalize_resource(resource) != normalize_resource(resource_url(request)))
     ):
         raise HTTPException(status_code=400, detail="PKCE and resource are required")
     hidden = "".join(
@@ -129,7 +154,7 @@ async def authorize_page(
             "code_challenge_method": code_challenge_method,
             "state": state or "",
             "scope": scope,
-            "resource": resource,
+            "resource": resource or resource_url(request),
         }.items()
     )
     return f"""<!doctype html><html><head><title>Authorize Relay CRM</title>
@@ -138,7 +163,7 @@ async def authorize_page(
 main{{border:1px solid #dfe8d3;border-radius:16px;padding:28px;box-shadow:0 12px 30px #17201312}}
 h1{{font-size:24px}}p{{color:#65725b;line-height:1.5}}button{{background:#587428;color:#fff;border:0;border-radius:9px;padding:12px 18px;font-weight:700;cursor:pointer}}</style>
 </head><body><main><h1>Connect Relay CRM</h1>
-<p><b>{escape(client.client_name)}</b> wants to use Relay CRM tools for accounts, sequences, and approved handoffs.</p>
+<p><b>{escape(client.client_name)}</b> wants to connect to Relay CRM tools for accounts, sequences, and approved handoffs.</p>
 <p>Relay will only act on requests you approve through the connected client.</p>
 <form method="post" action="/oauth/authorize">{hidden}<button type="submit">Approve connection</button></form>
 </main></body></html>"""
@@ -183,15 +208,37 @@ async def authorize(
 async def token(
     request: Request,
     grant_type: str = Form(...),
-    code: str = Form(...),
-    redirect_uri: str = Form(...),
+    code: str | None = Form(None),
+    redirect_uri: str | None = Form(None),
     client_id: str = Form(...),
-    code_verifier: str = Form(...),
+    code_verifier: str | None = Form(None),
     resource: str | None = Form(None),
+    refresh_token: str | None = Form(None),
+    client_secret: str | None = Form(None),
     db: AsyncSession = Depends(get_db),
 ):
+    if grant_type == "refresh_token":
+        if not refresh_token:
+            raise HTTPException(status_code=400, detail="Missing refresh_token")
+        verified = verify_refresh_token(refresh_token)
+        if not verified or verified.get("sub") != client_id:
+            raise HTTPException(status_code=400, detail="Invalid or expired refresh_token")
+        res_aud = verified.get("aud", resource_url(request))
+        res_scope = verified.get("scope", "relay")
+        return {
+            "access_token": create_access_token(client_id, res_aud, res_scope),
+            "token_type": "Bearer",
+            "expires_in": 3600,
+            "refresh_token": create_refresh_token(client_id, res_aud, res_scope),
+            "scope": res_scope,
+        }
+
     if grant_type != "authorization_code":
         raise HTTPException(status_code=400, detail="Unsupported grant_type")
+
+    if not code or not redirect_uri:
+        raise HTTPException(status_code=400, detail="code and redirect_uri are required")
+
     result = await db.execute(select(OAuthAuthorizationCode).where(
         OAuthAuthorizationCode.code_hash == hash_value(code),
         OAuthAuthorizationCode.client_id == client_id,
@@ -199,6 +246,7 @@ async def token(
     record = result.scalar_one_or_none()
     now = datetime.now(timezone.utc)
     expires_at = record.expires_at.replace(tzinfo=timezone.utc) if record and record.expires_at.tzinfo is None else record.expires_at if record else None
+
     if (
         not record
         or expires_at <= now
@@ -206,13 +254,18 @@ async def token(
         or (resource is not None and normalize_resource(resource) != normalize_resource(record.resource))
     ):
         raise HTTPException(status_code=400, detail="Invalid or expired authorization code")
-    if not pkce_valid(code_verifier, record.code_challenge, record.code_challenge_method):
-        raise HTTPException(status_code=400, detail="PKCE verification failed")
+
+    if code_verifier:
+        if not pkce_valid(code_verifier, record.code_challenge, record.code_challenge_method):
+            raise HTTPException(status_code=400, detail="PKCE verification failed")
+
     await db.delete(record)
     await db.commit()
+
     return {
         "access_token": create_access_token(client_id, record.resource, record.scope),
         "token_type": "Bearer",
         "expires_in": 3600,
-        "scope": record.scope or "",
+        "refresh_token": create_refresh_token(client_id, record.resource, record.scope),
+        "scope": record.scope or "relay",
     }
