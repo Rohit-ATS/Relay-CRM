@@ -13,7 +13,7 @@ export type SourceMetadata = {
   observedAt?: string;
 };
 
-/** Optional in browser demo records; required by persistent workspace tables. */
+/** Workspace ownership is filled from the authenticated Supabase session. */
 export type WorkspaceOwnership = { workspaceId?: string; userId?: string };
 
 export type SourcedFact = {
@@ -53,6 +53,7 @@ export type Contact = WorkspaceOwnership & {
   name: string;
   title?: string;
   email?: string;
+  linkedinUrl?: string;
   source?: SourceMetadata;
   auditHistory: AuditEntry[];
 };
@@ -81,7 +82,7 @@ export type Sequence = WorkspaceOwnership & {
   approvedAt?: string;
 };
 
-export const sequenceChannelValues = ["email"] as const;
+export const sequenceChannelValues = ["email", "linkedin_manual", "manual_review"] as const;
 export type SequenceChannel = (typeof sequenceChannelValues)[number];
 
 export type SequenceStep = {
@@ -157,7 +158,7 @@ export const accountSchema = ownershipSchema.extend({
 
 export const contactSchema = ownershipSchema.extend({
   id: z.string().min(1), accountId: z.string().min(1), name: z.string().min(1),
-  title: z.string().optional(), email: z.string().email().optional(), source: sourceMetadataSchema.optional(),
+  title: z.string().optional(), email: z.string().email().optional(), linkedinUrl: z.string().url().optional(), source: sourceMetadataSchema.optional(),
   auditHistory: z.array(auditEntrySchema),
 });
 
@@ -198,7 +199,7 @@ export const agentRunSchema = ownershipSchema.extend({
   status: z.enum(agentRunStatusValues),
   input: z.record(z.unknown()),
   output: z.record(z.unknown()).optional(),
-  provider: z.enum(["gemini", "demo_fixture"]).optional(),
+  provider: z.enum(["gemini"]).optional(),
   error: z.string().max(1000).optional(),
   accountId: z.string().uuid().optional(),
   createdAt: z.string().datetime(),
@@ -232,7 +233,7 @@ export type CreateActivityPayload = Pick<Activity, "accountId" | "type" | "summa
 export type CreateHandoffTaskPayload = Pick<HandoffTask, "accountId" | "title" | "reason"> & Partial<Pick<HandoffTask, "dueAt">>;
 
 export const createAccountPayloadSchema = accountSchema.pick({ companyName: true, domain: true, summary: true, facts: true });
-export const createContactPayloadSchema = contactSchema.pick({ accountId: true, name: true, title: true, email: true, source: true });
+export const createContactPayloadSchema = contactSchema.pick({ accountId: true, name: true, title: true, email: true, linkedinUrl: true, source: true });
 export const createDealPayloadSchema = dealSchema.pick({ accountId: true, name: true, stage: true, value: true, nextStep: true });
 export const createSequencePayloadSchema = z.object({ accountId: z.string().min(1), contactId: z.string().min(1).optional(), notes: z.string().optional() });
 export const approveSequencePayloadSchema = z.object({ sequenceId: z.string().min(1), approved: z.boolean() });
@@ -247,6 +248,7 @@ export type GenerateSequencePayload = {
 };
 
 export type GeneratedOutreachStep = {
+  channel: SequenceChannel;
   delayDays: number;
   subject: string;
   body: string;
@@ -254,12 +256,12 @@ export type GeneratedOutreachStep = {
 };
 
 export type GeneratedSequenceResult = {
-  mode: "gemini" | "demo_fixture";
+  mode: "gemini";
   brief: string;
   facts: SourcedFact[];
   assumptions: string[];
   steps: GeneratedOutreachStep[];
-  fallbackReason?: string;
+  channelRecommendation: { channel: "email" | "linkedin" | "manual_review"; reason: string; linkedinActivityEvidence: { claim: string; sourceUrl: string; observedAt: string }[] };
 };
 
 export const generateSequencePayloadSchema = z.object({
@@ -269,6 +271,7 @@ export const generateSequencePayloadSchema = z.object({
 });
 
 const generatedOutreachStepSchema = z.object({
+  channel: z.enum(sequenceChannelValues),
   delayDays: z.number().int().nonnegative(),
   subject: z.string().min(1),
   body: z.string().min(1),
@@ -276,10 +279,10 @@ const generatedOutreachStepSchema = z.object({
 });
 
 export const generatedSequenceResultSchema = z.object({
-  mode: z.enum(["gemini", "demo_fixture"]),
+  mode: z.literal("gemini"),
   brief: z.string().min(1),
   facts: z.array(sourcedFactSchema),
   assumptions: z.array(z.string()),
   steps: z.array(generatedOutreachStepSchema).length(3),
-  fallbackReason: z.string().optional(),
+  channelRecommendation: z.object({ channel: z.enum(["email","linkedin","manual_review"]), reason: z.string(), linkedinActivityEvidence: z.array(z.object({ claim: z.string(), sourceUrl: z.string().url(), observedAt:z.string().datetime() })) }),
 });

@@ -7,22 +7,26 @@ const id = (prefix: string) => `${prefix}_${crypto.randomUUID?.() ?? Math.random
 const now = () => new Date().toISOString();
 const audit = (summary: string, action: AuditEntry["action"] = "created"): AuditEntry => ({ id: id("audit"), action, actor: "user", at: now(), summary });
 
-export function seedData(): RelayData {
-  const createdAt = now();
-  const fixtures = [
-    ["northstar", "Northstar Labs", "northstarlabs.example", "AI operations platform for customer support teams.", "Avery Chen", "Founder & CEO", "avery@northstarlabs.example", "AI workflow pilot", "prospecting", 18000, "Confirm discovery call"],
-    ["vercelity", "Vercelity", "vercelity.example", "Developer tooling company consolidating its revenue operations.", "Jordan Lee", "VP of Sales", "jordan@vercelity.example", "Revenue workflow review", "engaged", 32000, "Share security overview"],
-    ["formwise", "Formwise", "formwise.example", "Forms and automation platform expanding its mid-market sales team.", "Alex Morgan", "Head of Growth", "alex@formwise.example", "Sales process assessment", "prospecting", 24500, "Map qualification workflow"],
-    ["brightpath", "Brightpath Health", "brightpath.example", "Digital health network evaluating a shared contact workflow.", "Priya Shah", "COO", "priya@brightpath.example", "Care network pilot", "engaged", 50000, "Schedule stakeholder walkthrough"],
-  ] as const;
-  const accounts: Account[] = [], contacts: Contact[] = [], deals: Deal[] = [];
-  for (const [slug, companyName, domain, summary, person, title, email, dealName, stage, value, nextStep] of fixtures) {
-    const accountId = `acct_${slug}`, contactId = `contact_${slug}`, dealId = `deal_${slug}`;
-    accounts.push({ id: accountId, companyName, domain, summary, facts: [{ key: "Company context", value: summary, source: { type: "user", label: "Relay demo fixture" } }], auditHistory: [audit("Loaded seeded demo record")], createdAt, updatedAt: createdAt });
-    contacts.push({ id: contactId, accountId, name: person, title, email, source: { type: "user", label: "Relay demo fixture" }, auditHistory: [audit("Loaded seeded demo contact")] });
-    deals.push({ id: dealId, accountId, name: dealName, stage, value, nextStep, auditHistory: [audit("Loaded seeded demo opportunity")] });
+function validIsoDate(value: unknown): string | undefined {
+  if (typeof value !== "string" || !value.trim()) return undefined;
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? undefined : date.toISOString();
+}
+
+/** Migrate old browser records whose dates predate the current ISO contract. */
+function normalizeAccountDates(data: RelayData): boolean {
+  let changed = false;
+  for (const account of data.accounts) {
+    const createdAt = validIsoDate(account.createdAt) ?? validIsoDate(account.auditHistory?.[0]?.at) ?? now();
+    const updatedAt = validIsoDate(account.updatedAt) ?? createdAt;
+    if (account.createdAt !== createdAt) { account.createdAt = createdAt; changed = true; }
+    if (account.updatedAt !== updatedAt) { account.updatedAt = updatedAt; changed = true; }
   }
-  return { accounts, contacts, deals, activities: [], handoffs: [], sequences: [] };
+  return changed;
+}
+
+export function emptyWorkspaceData(): RelayData {
+  return { accounts: [], contacts: [], deals: [], activities: [], handoffs: [], sequences: [] };
 }
 
 export function loadData(): RelayData {
@@ -31,21 +35,32 @@ export function loadData(): RelayData {
     if (stored) {
       const parsed = JSON.parse(stored) as Partial<RelayData>;
       if (Array.isArray(parsed.accounts) && Array.isArray(parsed.contacts) && Array.isArray(parsed.deals)) {
-        return { ...parsed, activities: parsed.activities ?? [], handoffs: parsed.handoffs ?? [], sequences: parsed.sequences ?? [] } as RelayData;
+        const data = { ...parsed, activities: parsed.activities ?? [], handoffs: parsed.handoffs ?? [], sequences: parsed.sequences ?? [] } as RelayData;
+        const fixtureIds = new Set(data.accounts.filter((account) => account.facts?.some((fact) => fact.source?.label === "Relay demo fixture") || ["northstarlabs.example","vercelity.example","formwise.example","brightpath.example","pinecone.example"].includes(account.domain ?? "")).map((account) => account.id));
+        if (fixtureIds.size) {
+          data.accounts = data.accounts.filter((account) => !fixtureIds.has(account.id));
+          data.contacts = data.contacts.filter((contact) => !fixtureIds.has(contact.accountId));
+          data.deals = data.deals.filter((deal) => !fixtureIds.has(deal.accountId));
+          data.activities = data.activities.filter((activity) => !fixtureIds.has(activity.accountId));
+          data.handoffs = data.handoffs.filter((handoff) => !fixtureIds.has(handoff.accountId));
+          data.sequences = data.sequences.filter((sequence) => !fixtureIds.has(sequence.accountId));
+          localStorage.setItem(storageKey, JSON.stringify(data));
+        }
+        if (normalizeAccountDates(data)) localStorage.setItem(storageKey, JSON.stringify(data));
+        return data;
       }
     }
-  } catch { /* Recover from stale or malformed local demo data. */ }
-  const initial = seedData(); saveData(initial); return initial;
+  } catch { /* Recover from stale or malformed local records. */ }
+  const initial = emptyWorkspaceData(); saveData(initial); return initial;
 }
-export function saveData(data: RelayData, notifyCloud = true): void { localStorage.setItem(storageKey, JSON.stringify(data)); if (notifyCloud && typeof window !== "undefined") window.dispatchEvent(new CustomEvent("relay:data-saved", { detail: data })); }
+export function saveData(data: RelayData, notifyCloud = true): void { normalizeAccountDates(data); localStorage.setItem(storageKey, JSON.stringify(data)); if (notifyCloud && typeof window !== "undefined") window.dispatchEvent(new CustomEvent("relay:data-saved", { detail: data })); }
 export function importRows(data: RelayData, rows: CsvImportRow[]): RelayData {
   const importedAt = now();
   rows.forEach((row) => {
     const accountId = id("acct"), contactId = id("contact"), dealId = id("deal");
     data.accounts.push({ id: accountId, companyName: row.company_name, domain: row.domain, summary: "Imported from the supplied CSV.", facts: [{ key: "Record source", value: "CSV import", source: { type: "user", label: "Imported CSV" } }], auditHistory: [audit("Imported from CSV")], createdAt: importedAt, updatedAt: importedAt });
-    data.contacts.push({ id: contactId, accountId, name: row.contact_name, title: row.contact_title, email: row.contact_email, source: { type: "user", label: "Imported CSV" }, auditHistory: [audit("Imported from CSV")] });
+    data.contacts.push({ id: contactId, accountId, name: row.contact_name, title: row.contact_title, email: row.contact_email, linkedinUrl: row.linkedin_url, source: { type: "user", label: "Imported CSV" }, auditHistory: [audit("Imported from CSV")] });
     data.deals.push({ id: dealId, accountId, name: row.deal_name, stage: row.deal_stage ?? "prospecting", value: row.deal_value, nextStep: row.next_step, auditHistory: [audit("Imported from CSV")] });
   });
   saveData(data); return data;
 }
-export function resetData(): RelayData { const data = seedData(); saveData(data); return data; }

@@ -9,7 +9,7 @@ export function getSupabaseBrowserClient(): SupabaseClient | null {
   return browserClient;
 }
 
-export type RelayRealtimeTable = "agent_runs" | "activities" | "accounts" | "deals" | "handoff_tasks";
+export type RelayRealtimeTable = "agent_runs" | "activities" | "accounts" | "contacts" | "deals" | "sequences" | "sequence_steps" | "approvals" | "handoff_tasks" | "workflows";
 export type RelayRealtimeEvent = { table: RelayRealtimeTable; eventType: string; record: Record<string, unknown> };
 
 /** Subscribes only after Supabase Auth has an authenticated workspace member session. */
@@ -22,7 +22,7 @@ export async function subscribeRelayWorkspace(
   if (!client) { onStatus?.("not_configured"); return null; }
   const { data: { session } } = await client.auth.getSession();
   if (!session) { onStatus?.("authentication_required"); return null; }
-  const tables: RelayRealtimeTable[] = ["agent_runs", "activities", "accounts", "deals", "handoff_tasks"];
+  const tables: RelayRealtimeTable[] = ["agent_runs", "activities", "accounts", "contacts", "deals", "sequences", "sequence_steps", "approvals", "handoff_tasks", "workflows"];
   let channel: RealtimeChannel = client.channel(`relay:${workspaceId}`);
   for (const table of tables) {
     channel = channel.on("postgres_changes", {
