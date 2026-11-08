@@ -8,42 +8,64 @@ const app = document.querySelector<HTMLDivElement>("#app")!;
 function renderLanding(): void {
   app.innerHTML = `
     <main class="landing-page">
-      <header class="landing-nav"><a class="landing-logo" href="/"><span>✳</span> relay<span class="orange">.</span></a><nav><a href="#home">Home</a><a href="#features">Features</a><a href="#workflow">Workflow</a><a href="#about">About</a></nav><div class="landing-nav-actions"><a class="landing-login" href="/workspace">Open workspace</a><a class="landing-nav-cta" href="/workspace">Get started <span>↗</span></a></div></header>
-      <section class="landing-hero" id="home"><div class="hero-glow"></div><div class="hero-copy"><span class="hero-badge"><i>✦</i> THE CRM THAT MOVES WITH YOUR SALES</span><h1>Close more deals.<br>Grow <em>revenue faster.</em></h1><p>Relay turns your lead list into a living CRM. Prepare thoughtful outreach for approval, then keep every account current as conversations happen.</p><div class="hero-actions"><a href="/workspace" class="hero-primary">Open the demo <span>↗</span></a><a href="#features" class="hero-secondary"><span>↓</span> Explore Relay</a></div><div class="hero-note"><span class="note-avatars"><i>R</i><i>✳</i><i>✓</i></span><span>Built for teams that sell with context.</span></div></div>
-        <div class="hero-preview-wrap"><div class="browser-preview"><div class="browser-bar"><div class="browser-dots"><i></i><i></i><i></i></div><div class="browser-url"><span>⌑</span> relay.app / workspace <span>↻</span></div><div class="browser-tools">↗ &nbsp; ▢ &nbsp; ···</div></div><div class="preview-app"><aside class="preview-side"><div class="preview-brand"><span>✳</span> relay<span class="orange">.</span></div><div class="preview-nav active">▦ &nbsp; Pipeline</div><div class="preview-nav">✳ &nbsp; Sequences</div><div class="preview-nav">↗ &nbsp; Handoffs</div><div class="preview-side-note"><b>DEMO WORKSPACE</b><span>Records stay in sync</span></div></aside><div class="preview-content"><div class="preview-top"><span>Accounts / Pipeline</span><span class="preview-user">RC</span></div><div class="preview-title"><div><small>YOUR SALES WORKSPACE</small><b>Accounts &amp; pipeline<span class="orange">.</span></b></div><a class="preview-import" href="/workspace">＋ Import leads</a></div><div class="preview-stats"><div><small>OPEN PIPELINE</small><b>$124,500</b><span>Across 4 opportunities</span></div><div><small>ACTIVE ACCOUNTS</small><b>04</b><span>All records up to date</span></div><div><small>NEEDS REVIEW</small><b>01</b><span>Plan awaiting approval</span></div></div><div class="preview-panels"><div class="preview-table"><div class="fake-table-head">ACCOUNT <span>CONTACT</span><span>STAGE</span><span>VALUE</span></div><div class="fake-row"><i class="fake-avatar c0">NL</i><b>Northstar Labs</b><span>Maya Chen</span><em>Qualified</em><strong>$48,000</strong></div><div class="fake-row"><i class="fake-avatar c1">V</i><b>Vercelity</b><span>Jordan Lee</span><em>Discovery</em><strong>$32,000</strong></div><div class="fake-row"><i class="fake-avatar c2">F</i><b>Formwise</b><span>Alex Morgan</span><em>Prospecting</em><strong>$18,500</strong></div></div><div class="preview-chart"><div class="chart-caption"><b>Pipeline momentum</b><span>Demo snapshot</span></div><div class="chart-number">$124.5k</div><div class="mini-bars"><span style="height:32%"></span><span style="height:47%"></span><span style="height:39%"></span><span style="height:62%"></span><span style="height:48%"></span><span style="height:76%"></span><span style="height:56%"></span><span style="height:85%"></span><span style="height:66%"></span><span class="hot" style="height:98%"></span><span style="height:70%"></span><span style="height:82%"></span></div><div class="chart-months"><span>JUN</span><span>JUL</span><span>AUG</span><span>SEP</span><span>OCT</span><span>NOV</span></div></div></div><div class="preview-bottom"><span><i></i> CRM records stay current</span><span>Next up · Sequence review ↗</span></div></div></div><div class="float-card float-approval"><span class="float-icon">✓</span><div><b>Approval stays human</b><small>Review before anything moves</small></div></div><div class="float-card float-update"><span class="float-spark">✳</span><div><b>CRM updated</b><small>Reply → engaged opportunity</small></div><span class="float-check">↗</span></div></div><div class="hero-orbit orbit-one"></div><div class="hero-orbit orbit-two"></div>
+      <header class="landing-nav"><a class="landing-logo" href="/"><span>✳</span> relay<span class="orange">.</span></a><nav><a href="#home">Home</a><a href="#features">Features</a><a href="#workflow">Workflow</a><a href="/docs">Docs</a><a href="#about">About</a></nav><div class="landing-nav-actions"><a class="landing-login" href="/dashboard">Open workspace</a><a class="landing-nav-cta" href="/dashboard?tour=1">Get started <span>↗</span></a></div></header>
+      <section class="landing-hero" id="home"><div class="hero-glow"></div><div class="hero-copy"><span class="hero-badge"><i>✦</i> THE CRM THAT MOVES WITH YOUR SALES</span><h1>Close more deals.<br>Grow <em>revenue faster.</em></h1><p>Relay turns your lead list into a living CRM. Prepare thoughtful outreach for approval, then keep every account current as conversations happen.</p><div class="hero-actions"><a href="/dashboard?tour=1" class="hero-primary">Open the demo <span>↗</span></a><a href="#features" class="hero-secondary"><span>↓</span> Explore Relay</a></div><div class="hero-note"><span class="note-avatars"><i>R</i><i>✳</i><i>✓</i></span><span>Built for teams that sell with context.</span></div></div>
+        <div class="hero-preview-wrap"><div class="browser-preview"><div class="browser-bar"><div class="browser-dots"><i></i><i></i><i></i></div><div class="browser-url"><span>⌑</span> relay.app / workspace <span>↻</span></div><div class="browser-tools">↗ &nbsp; ▢ &nbsp; ···</div></div><div class="preview-app"><aside class="preview-side"><div class="preview-brand"><span>✳</span> relay<span class="orange">.</span></div><div class="preview-nav active">▦ &nbsp; Pipeline</div><div class="preview-nav">✳ &nbsp; Sequences</div><div class="preview-nav">↗ &nbsp; Handoffs</div><div class="preview-side-note"><b>DEMO WORKSPACE</b><span>Records stay in sync</span></div></aside><div class="preview-content"><div class="preview-top"><span>Accounts / Pipeline</span><span class="preview-user">RC</span></div><div class="preview-title"><div><small>YOUR SALES WORKSPACE</small><b>Accounts &amp; pipeline<span class="orange">.</span></b></div><a class="preview-import" href="/dashboard">＋ Import leads</a></div><div class="preview-stats"><div><small>OPEN PIPELINE</small><b>$124,500</b><span>Across 4 opportunities</span></div><div><small>ACTIVE ACCOUNTS</small><b>04</b><span>All records up to date</span></div><div><small>NEEDS REVIEW</small><b>01</b><span>Plan awaiting approval</span></div></div><div class="preview-panels"><div class="preview-table"><div class="fake-table-head">ACCOUNT <span>CONTACT</span><span>STAGE</span><span>VALUE</span></div><div class="fake-row"><i class="fake-avatar c0">NL</i><b>Northstar Labs</b><span>Maya Chen</span><em>Qualified</em><strong>$48,000</strong></div><div class="fake-row"><i class="fake-avatar c1">V</i><b>Vercelity</b><span>Jordan Lee</span><em>Discovery</em><strong>$32,000</strong></div><div class="fake-row"><i class="fake-avatar c2">F</i><b>Formwise</b><span>Alex Morgan</span><em>Prospecting</em><strong>$18,500</strong></div></div><div class="preview-chart"><div class="chart-caption"><b>Pipeline momentum</b><span>Demo snapshot</span></div><div class="chart-number">$124.5k</div><div class="mini-bars"><span style="height:32%"></span><span style="height:47%"></span><span style="height:39%"></span><span style="height:62%"></span><span style="height:48%"></span><span style="height:76%"></span><span style="height:56%"></span><span style="height:85%"></span><span style="height:66%"></span><span class="hot" style="height:98%"></span><span style="height:70%"></span><span style="height:82%"></span></div><div class="chart-months"><span>JUN</span><span>JUL</span><span>AUG</span><span>SEP</span><span>OCT</span><span>NOV</span></div></div></div><div class="preview-bottom"><span><i></i> CRM records stay current</span><span>Next up · Sequence review ↗</span></div></div></div><div class="float-card float-approval"><span class="float-icon">✓</span><div><b>Approval stays human</b><small>Review before anything moves</small></div></div><div class="float-card float-update"><span class="float-spark">✳</span><div><b>CRM updated</b><small>Reply → engaged opportunity</small></div><span class="float-check">↗</span></div></div><div class="hero-orbit orbit-one"></div><div class="hero-orbit orbit-two"></div>
       </section>
       <section class="trust-strip"><p>SAMPLE ACCOUNTS IN THE DEMO WORKSPACE</p><div class="trust-logos"><span><b>◈</b> northstar</span><span><b>✳</b> formwise</span><span><b>◉</b> brightpath</span><span><b>◌</b> vercelity</span><span><b>⌘</b> founder-led</span></div></section>
       <section class="landing-features" id="features"><div class="section-kicker"><i>✦</i> THE RELAY WORKSPACE</div><h2>Smarter CRM tools to<br>boost your sales<span class="orange">.</span></h2><p class="section-intro">Everything you need to manage customer context and move the next step forward.</p><div class="feature-grid"><article class="feature-card"><div class="feature-visual"><div class="feature-visual-title"><span>Lead management</span><span>↗</span></div><div class="lead-mini"><div><i class="lead-dot purple"></i><b>Maya Chen</b><span>Northstar Labs</span><em>Engaged</em></div><div><i class="lead-dot orange-dot"></i><b>Jordan Lee</b><span>Vercelity</span><em>New</em></div><div><i class="lead-dot green-dot"></i><b>Alex Morgan</b><span>Formwise</span><em>New</em></div></div></div><h3>Lead management</h3><p>Turn a lead list into connected account, contact, and deal records.</p></article><article class="feature-card"><div class="feature-visual"><div class="feature-visual-title"><span>Pipeline tracking</span><span>↗</span></div><div class="pipeline-mini"><div><small>OPEN PIPELINE</small><b>$124,500</b><span>Demo snapshot</span></div><div class="pipeline-line"><i></i><i></i><i></i><i></i></div><div class="pipeline-labels"><span>Prospecting</span><span>Qualified</span><span>Engaged</span><span>Won</span></div></div></div><h3>Pipeline tracking</h3><p>See the next step and deal context across every account.</p></article><article class="feature-card"><div class="feature-visual"><div class="feature-visual-title"><span>Customer context</span><span>↗</span></div><div class="insight-mini"><div class="insight-circle"><span>04</span><small>accounts</small></div><div><small>SAMPLE SIGNAL</small><b>“Let’s schedule a walkthrough.”</b><span>Reply added · demo</span></div></div></div><h3>Customer context</h3><p>Keep supplied facts and conversation history together.</p></article><article class="feature-card"><div class="feature-visual"><div class="feature-visual-title"><span>Approved workflows</span><span>↗</span></div><div class="automation-mini"><div class="auto-step"><i>01</i><span>Import lead list</span><b>✓</b></div><div class="auto-step"><i>02</i><span>Approve outreach plan</span><b>✓</b></div><div class="auto-step current"><i>03</i><span>Update CRM + hand off</span><b>↗</b></div></div></div><h3>Approved workflows</h3><p>Prepare outreach for review, then keep the CRM current as replies arrive.</p></article></div></section>
-      <section class="landing-workflow" id="workflow"><div class="workflow-copy"><div class="section-kicker"><i>✦</i> ONE CONNECTED LOOP</div><h2>From first touch<br>to real momentum<span class="orange">.</span></h2><p>Customer details shouldn’t get lost between a spreadsheet, an inbox, and your CRM. Relay connects the work and keeps a clear record of every decision.</p><a href="/workspace" class="workflow-link">See Relay in action <span>↗</span></a><div class="workflow-steps-landing"><div><b>01</b><span>Import leads</span></div><i>→</i><div><b>02</b><span>Review &amp; approve</span></div><i>→</i><div><b>03</b><span>Learn &amp; hand off</span></div></div></div><div class="workflow-visual"><div class="workflow-glow"></div><div class="approval-card"><div class="approval-head"><span class="approval-icon">✳</span><div><small>OUTREACH PLAN · NORTHSTAR LABS</small><b>A thoughtful first conversation</b></div><span class="draft-tag">DRAFT</span></div><div class="approval-message"><small>TO MAYA CHEN · VP OF GROWTH</small><p>Hi Maya, I saw Northstar is building an AI operations platform for support teams…</p></div><div class="approval-actions"><span>✎ Edit draft</span><b>Approve plan <i>→</i></b></div></div><div class="reply-card"><span class="reply-avatar">MC</span><div><small>SIMULATED PROSPECT REPLY</small><b>“We’re interested. Can we see a walkthrough?”</b><span>CRM updated · handoff created</span></div><span class="reply-check">✓</span></div><div class="workflow-side-label">APPROVAL REQUIRED <i></i> RECORDS STAY AUDITABLE</div></div></section>
-      <section class="landing-cta" id="about"><div class="cta-decoration">✳</div><div class="section-kicker"><i>✦</i> YOUR NEXT CUSTOMER, WITH CONTEXT</div><h2>Make every follow-up<br>feel like a fresh start.</h2><p>Bring your leads. Relay will keep the details and next steps connected.</p><a href="/workspace" class="hero-primary">Explore the demo workspace <span>↗</span></a><small>Demo mode · No external messages are sent</small></section>
-      <footer class="landing-footer"><a href="/" class="landing-logo"><span>✳</span> relay<span class="orange">.</span></a><span>Account context in motion.</span><div><a href="#features">Features</a><a href="#workflow">Workflow</a><a href="/workspace">Open CRM</a></div><small>© 2026 Relay CRM · Demo workspace</small></footer>
+      <section class="landing-workflow" id="workflow"><div class="workflow-copy"><div class="section-kicker"><i>✦</i> ONE CONNECTED LOOP</div><h2>From first touch<br>to real momentum<span class="orange">.</span></h2><p>Customer details shouldn’t get lost between a spreadsheet, an inbox, and your CRM. Relay connects the work and keeps a clear record of every decision.</p><a href="/dashboard?tour=1" class="workflow-link">See Relay in action <span>↗</span></a><div class="workflow-steps-landing"><div><b>01</b><span>Import leads</span></div><i>→</i><div><b>02</b><span>Review &amp; approve</span></div><i>→</i><div><b>03</b><span>Learn &amp; hand off</span></div></div></div><div class="workflow-visual"><div class="workflow-glow"></div><div class="approval-card"><div class="approval-head"><span class="approval-icon">✳</span><div><small>OUTREACH PLAN · NORTHSTAR LABS</small><b>A thoughtful first conversation</b></div><span class="draft-tag">DRAFT</span></div><div class="approval-message"><small>TO MAYA CHEN · VP OF GROWTH</small><p>Hi Maya, I saw Northstar is building an AI operations platform for support teams…</p></div><div class="approval-actions"><span>✎ Edit draft</span><b>Approve plan <i>→</i></b></div></div><div class="reply-card"><span class="reply-avatar">MC</span><div><small>SIMULATED PROSPECT REPLY</small><b>“We’re interested. Can we see a walkthrough?”</b><span>CRM updated · handoff created</span></div><span class="reply-check">✓</span></div><div class="workflow-side-label">APPROVAL REQUIRED <i></i> RECORDS STAY AUDITABLE</div></div></section>
+      <section class="landing-cta" id="about"><div class="cta-decoration">✳</div><div class="section-kicker"><i>✦</i> YOUR NEXT CUSTOMER, WITH CONTEXT</div><h2>Make every follow-up<br>feel like a fresh start.</h2><p>Bring your leads. Relay will keep the details and next steps connected.</p><a href="/dashboard?tour=1" class="hero-primary">Explore the demo workspace <span>↗</span></a><small>Demo mode · No external messages are sent</small></section>
+      <footer class="landing-footer"><a href="/" class="landing-logo"><span>✳</span> relay<span class="orange">.</span></a><span>Account context in motion.</span><div><a href="#features">Features</a><a href="#workflow">Workflow</a><a href="/dashboard">Open CRM</a></div><small>© 2026 Relay CRM · Demo workspace</small></footer>
     </main>`;
 }
 
-if (window.location.pathname === "/landing" || window.location.pathname.endsWith("/landing")) renderLanding();
-else {
-  window.addEventListener("popstate", () => renderWorkspace(app));
-  window.addEventListener("relay:cloud-status", () => {
-    const path = window.location.pathname;
-    if (path === "/settings" || path.endsWith("/settings")) renderWorkspace(app);
-  });
-  window.addEventListener("relay:cloud-data-updated", () => refreshWorkspaceFromStorage(app));
-
-  document.addEventListener("click", (e) => {
-    const target = (e.target as HTMLElement).closest("a");
-    if (!target) return;
-    const href = target.getAttribute("href");
-    if (!href || href.startsWith("http") || href.startsWith("#") || href.startsWith("mailto:")) return;
-    if (href === "/docs" || href.endsWith("/docs")) return; // Let static docs page load directly
-
-    e.preventDefault();
-    const basePath = location.pathname.startsWith("/Relay-CRM") ? "/Relay-CRM" : "";
-    const cleanHref = href.startsWith(basePath) ? href.slice(basePath.length) : href;
-    const targetUrl = `${basePath}${cleanHref.startsWith("/") ? cleanHref : `/${cleanHref}`}`;
-    history.pushState(null, "", targetUrl);
-    renderWorkspace(app);
-  });
-
-  renderWorkspace(app);
-  void initializeSupabaseWorkspace().then(() => renderWorkspace(app));
+function getSubPath(): string {
+  const full = location.pathname;
+  const basePath = full.startsWith("/Relay-CRM") ? "/Relay-CRM" : "";
+  let p = full.slice(basePath.length).replace(/\/$/, "");
+  if (!p.startsWith("/")) p = `/${p}`;
+  return p;
 }
+
+function isLanding(): boolean {
+  const p = getSubPath();
+  return p === "/" || p === "" || p === "/landing";
+}
+
+function handleRoute(): void {
+  if (isLanding()) {
+    renderLanding();
+  } else {
+    renderWorkspace(app);
+  }
+}
+
+window.addEventListener("popstate", () => handleRoute());
+window.addEventListener("relay:cloud-status", () => {
+  const path = getSubPath();
+  if (path === "/settings") handleRoute();
+});
+window.addEventListener("relay:cloud-data-updated", () => {
+  if (!isLanding()) refreshWorkspaceFromStorage(app);
+});
+
+document.addEventListener("click", (e) => {
+  const target = (e.target as HTMLElement).closest("a");
+  if (!target) return;
+  const href = target.getAttribute("href");
+  if (!href || href.startsWith("http") || href.startsWith("#") || href.startsWith("mailto:")) return;
+  if (href === "/docs" || href.endsWith("/docs")) return; // Let static docs page load directly
+
+  e.preventDefault();
+  const basePath = location.pathname.startsWith("/Relay-CRM") ? "/Relay-CRM" : "";
+  const cleanHref = href.startsWith(basePath) ? href.slice(basePath.length) : href;
+  const targetUrl = `${basePath}${cleanHref.startsWith("/") ? cleanHref : `/${cleanHref}`}`;
+  history.pushState(null, "", targetUrl);
+  handleRoute();
+});
+
+handleRoute();
+void initializeSupabaseWorkspace().then(() => {
+  if (!isLanding()) renderWorkspace(app);
+});
