@@ -26,7 +26,7 @@ services:
   - type: web
     name: relay-crm-app
     runtime: static
-    buildCommand: npm ci && npm run export:next && npm run build && mkdir -p dist/docs && cp -r next-ui/out/docs/* dist/docs/ 2>/dev/null || true && cp dist/index.html dist/404.html
+    buildCommand: npm run build:render
     staticPublishPath: dist
     envVars:
       - key: VITE_BASE_PATH
