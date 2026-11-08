@@ -17,11 +17,12 @@ export const metadata: Metadata = {
   authors: [{ name: "Relay CRM" }],
   icons: {
     icon: [
-      { url: "/favicon.svg", type: "image/svg+xml" },
-      { url: "/favicon.png", sizes: "32x32", type: "image/png" },
-      { url: "/favicon.ico" },
+      { url: "https://rohit-ats.github.io/Relay-CRM/favicon.svg", type: "image/svg+xml" },
+      { url: "https://rohit-ats.github.io/Relay-CRM/favicon.png", sizes: "32x32", type: "image/png" },
+      { url: "https://rohit-ats.github.io/Relay-CRM/favicon.ico" },
     ],
-    apple: [{ url: "/apple-touch-icon.png", sizes: "180x180" }],
+    shortcut: ["https://rohit-ats.github.io/Relay-CRM/favicon.ico"],
+    apple: [{ url: "https://rohit-ats.github.io/Relay-CRM/apple-touch-icon.png", sizes: "180x180" }],
   },
   openGraph: {
     title: "Relay — CRM that moves with your sales",

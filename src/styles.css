@@ -72,7 +72,6 @@ h1, h2, h3, h4, b, strong { font-family: var(--font-heading); }
   letter-spacing: -0.05em;
   text-decoration: none;
 }
-.workspace-brand-icon,
 .workspace-brand i {
   display: flex;
   align-items: center;
@@ -81,24 +80,17 @@ h1, h2, h3, h4, b, strong { font-family: var(--font-heading); }
   height: 30px;
   border-radius: 9px;
   background: #18181b;
-  color: #ffffff;
+  color: #ffffff !important;
+  font-style: normal;
   flex-shrink: 0;
   line-height: 1;
 }
-.workspace-brand-icon svg {
+.workspace-brand i svg {
   display: block;
 }
-.workspace-brand .brand-text {
-  display: inline-flex;
-  align-items: baseline;
-  letter-spacing: -0.05em;
-}
-.workspace-brand .brand-text span.orange,
-.workspace-brand span.orange,
-.workspace-brand span {
+.workspace-brand .brand-dot,
+.workspace-brand span.orange {
   color: var(--orange);
-  margin-left: 0;
-  display: inline;
 }
 
 .quick-action {
