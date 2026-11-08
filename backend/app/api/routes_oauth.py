@@ -28,6 +28,7 @@ def resource_url(request: Request) -> str:
 
 @router.get("/.well-known/oauth-protected-resource")
 @router.get("/.well-known/oauth-protected-resource/mcp")
+@router.get("/.well-known/oauth-protected-resource/mcp/")
 async def protected_resource_metadata(request: Request):
     base = origin(request)
     return {
