@@ -12,6 +12,7 @@ class Settings(BaseSettings):
     PORT: int = int(os.getenv("PORT", 8787))
     ENVIRONMENT: str = "development"
     MCP_AUTH_TOKEN: str | None = None
+    OAUTH_SIGNING_SECRET: str | None = None
     
     # SQLite async by default; supports postgresql+asyncpg:// if provided
     DATABASE_URL: str = os.getenv("DATABASE_URL", "sqlite+aiosqlite:///./relay_crm.db")

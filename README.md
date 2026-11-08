@@ -123,6 +123,15 @@ For Cursor, use a local stdio configuration:
 
 `MCP_AUTH_TOKEN` protects the remote MCP mount with `Authorization: Bearer <token>`. Generate it locally with `openssl rand -hex 32`, then add it as a secret environment variable in Render. The current public CRM API remains unchanged; do not expose the MCP URL without this token. The adapter intentionally keeps proposal and mutation steps separate: agents can analyze, but approvals and CRM changes require an explicit user action.
 
+### ChatGPT Custom MCP OAuth
+
+ChatGPT Custom MCP connections use OAuth rather than a manually entered static bearer token. Add a separate random `OAUTH_SIGNING_SECRET` secret in Render, keep `MCP_AUTH_TOKEN` if existing clients still use it, and redeploy. Relay publishes OAuth discovery metadata at:
+
+- `/.well-known/oauth-protected-resource`
+- `/.well-known/oauth-authorization-server`
+
+In ChatGPT, choose **Add → Add custom MCP server**, enter `https://relay-crm-api.onrender.com/mcp/`, and select **OAuth**. ChatGPT will register a public PKCE client, show the Relay consent page, and receive a one-hour access token. No OAuth secret or token should be placed in the repository.
+
 If you use a custom domain, add its hostname to `MCP_ALLOWED_HOSTS` in Render. The default allowlist includes the deployed Render hostname and local development hosts.
 
 ## 💻 Local Setup

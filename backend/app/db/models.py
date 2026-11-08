@@ -136,3 +136,28 @@ class HandoffTask(Base):
     updated_at = Column(DateTime(timezone=True), default=utc_now, onupdate=utc_now, nullable=False)
 
     account = relationship("Account", back_populates="handoffs")
+
+
+class OAuthClient(Base):
+    __tablename__ = "oauth_clients"
+
+    client_id = Column(String(128), primary_key=True)
+    client_secret = Column(String(128), nullable=True)
+    client_name = Column(String(255), nullable=False)
+    redirect_uris = Column(JSON, nullable=False)
+    token_endpoint_auth_method = Column(String(50), default="none", nullable=False)
+    created_at = Column(DateTime(timezone=True), default=utc_now, nullable=False)
+
+
+class OAuthAuthorizationCode(Base):
+    __tablename__ = "oauth_authorization_codes"
+
+    code_hash = Column(String(128), primary_key=True)
+    client_id = Column(String(128), nullable=False, index=True)
+    redirect_uri = Column(String(1000), nullable=False)
+    code_challenge = Column(String(255), nullable=False)
+    code_challenge_method = Column(String(20), default="S256", nullable=False)
+    resource = Column(String(1000), nullable=False)
+    scope = Column(String(1000), nullable=True)
+    expires_at = Column(DateTime(timezone=True), nullable=False)
+    created_at = Column(DateTime(timezone=True), default=utc_now, nullable=False)

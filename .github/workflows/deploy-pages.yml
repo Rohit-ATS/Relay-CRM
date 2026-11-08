@@ -36,16 +36,25 @@ jobs:
       - name: Configure GitHub Pages
         uses: actions/configure-pages@v5
 
-      - name: Build static Next frontend
+      - name: Build static Next frontend (docs)
         run: npm run export:next
 
-      - name: Disable Jekyll processing
-        run: touch next-ui/out/.nojekyll
+      - name: Build Vite workspace (Rohit's CRM dashboard)
+        run: npm run build
+        env:
+          VITE_BASE_PATH: /Relay-CRM/
+
+      - name: Merge docs and setup GitHub Pages SPA
+        run: |
+          mkdir -p dist/docs
+          cp -r next-ui/out/docs/* dist/docs/ 2>/dev/null || true
+          cp dist/index.html dist/404.html
+          touch dist/.nojekyll
 
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v3
         with:
-          path: next-ui/out
+          path: dist
 
   deploy:
     environment:
