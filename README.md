@@ -18,7 +18,7 @@ Relay turns lead lists into persistent customer records, tailored outreach plans
 3. **Workflow Plan:** 3-step email outreach sequence with rationale, timing (`delay_days`), and editable drafts.
 4. **Approval Queue:** Human approval checkpoint (`approved` / `rejected`) that records state and immutable audit activity without claiming fake external delivery.
 5. **Inbound Update & Warm Handoff:** Prospect replies or call notes trigger sentiment/intent parsing, propose stage transitions, record audit history, and create high-priority tasks in the **Handoff Queue**.
-6. **Wren QA:** Built-in verification endpoints for **Workflow A (Import & Prepare)** and **Workflow B (Update & Handoff)**.
+6. **Wren QA:** Seldon's Wren is an external browser QA agent. Relay's Wren run instructions are in [`docs/wren-qa-plan.md`](docs/wren-qa-plan.md); only Wren's recorded browser run is evidence of Wren QA.
 
 ---
 
@@ -35,11 +35,10 @@ Relay turns lead lists into persistent customer records, tailored outreach plans
 
 ## 📡 Backend API Reference
 
-### 1. Health & Wren Proof
+### 1. Health & Legacy Verification
 - `GET /health` or `GET /api/health` — Service health check.
-- `GET /api/qa/status` — System readiness and record counts for Wren evaluation.
-- `GET /api/qa/verify-import` — Executes and verifies **Wren Workflow A** (CSV Import → Records → Brief → Sequence).
-- `GET /api/qa/verify-handoff` — Executes and verifies **Wren Workflow B** (Inbound reply → Deal stage progression → Activity → Handoff task).
+- `GET /api/qa/status` — Legacy FastAPI readiness and record counts.
+- `GET /api/qa/verify-import` and `GET /api/qa/verify-handoff` — Legacy state-changing checks. They may import bundled sample data or apply a canned reply; do not run against a real workspace and do not treat their output as Seldon Wren evidence.
 
 ### 2. Lead Import & Sample
 - `GET /api/import/sample` — Download sample B2B outbound CSV (`sample_leads.csv`).

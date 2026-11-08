@@ -48,6 +48,7 @@ jobs:
         run: |
           mkdir -p dist/docs
           cp -r next-ui/out/docs/* dist/docs/ 2>/dev/null || true
+          cp -r public/* dist/ 2>/dev/null || true
           cp dist/index.html dist/404.html
           touch dist/.nojekyll
 

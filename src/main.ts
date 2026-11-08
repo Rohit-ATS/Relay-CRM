@@ -1,6 +1,6 @@
 import "./styles.css";
 import "../next-ui/app/landing.css";
-import { appPath, refreshWorkflowFromRealtime, refreshWorkspaceFromStorage, renderWorkspace, toHref } from "./workspace";
+import { appPath, landingDocsHref, refreshWorkflowFromRealtime, refreshWorkspaceFromStorage, renderWorkspace, toHref } from "./workspace";
 import { initializeSupabaseWorkspace } from "./lib/supabase-sync";
 
 const app = document.querySelector<HTMLDivElement>("#app")!;
@@ -19,7 +19,8 @@ function renderLanding(): void {
     </main>`;
 }
 
-if (appPath() === "/landing") renderLanding();
+if (appPath() === "/docs" || appPath() === "/docs/") window.location.replace(landingDocsHref());
+else if (appPath() === "/landing") renderLanding();
 else {
   window.addEventListener("popstate", () => renderWorkspace(app));
   window.addEventListener("relay:cloud-status", () => renderWorkspace(app));
@@ -33,7 +34,7 @@ else {
     if (!href || href.startsWith("http") || href.startsWith("#") || href.startsWith("mailto:")) return;
     const base = toHref("/").replace(/\/$/, "");
     const normalized = href.startsWith(base) ? href.slice(base.length) || "/" : href;
-    if (normalized === "/docs") return;
+    if (normalized === "/docs" || normalized === "/docs/") return;
     event.preventDefault();
     history.pushState(null, "", toHref(normalized));
     if (appPath() === "/landing") renderLanding(); else renderWorkspace(app);

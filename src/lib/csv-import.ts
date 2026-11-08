@@ -107,4 +107,9 @@ export function parseCsv(text: string): CsvPreview {
   return { headers, rows, errors };
 }
 
-export const sampleCsv = [...supportedCsvHeaders].join(",");
+export const sampleCsv = [
+  [...supportedCsvHeaders].join(","),
+  "Northwind Analytics,northwind.example,https://linkedin.com/company/northwind-analytics,Avery Chen,VP of Sales,avery@example.test,CRM evaluation,prospecting,24000,Review current sales workflow",
+  "Juniper Cloud,juniper.example,https://linkedin.com/company/juniper-cloud,Jordan Lee,Founder,jordan@example.test,Pipeline visibility,engaged,18000,Schedule a discovery call",
+  "Copperline Health,copperline.example,,Morgan Patel,Operations Director,morgan@example.test,Account workflow review,prospecting,32000,Confirm evaluation timeline",
+].join("\n");

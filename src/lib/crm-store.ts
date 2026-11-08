@@ -61,6 +61,12 @@ export function importRows(data: RelayData, rows: CsvImportRow[]): RelayData {
     data.accounts.push({ id: accountId, companyName: row.company_name, domain: row.domain, summary: "Imported from the supplied CSV.", facts: [{ key: "Record source", value: "CSV import", source: { type: "user", label: "Imported CSV" } }], auditHistory: [audit("Imported from CSV")], createdAt: importedAt, updatedAt: importedAt });
     data.contacts.push({ id: contactId, accountId, name: row.contact_name, title: row.contact_title, email: row.contact_email, linkedinUrl: row.linkedin_url, source: { type: "user", label: "Imported CSV" }, auditHistory: [audit("Imported from CSV")] });
     data.deals.push({ id: dealId, accountId, name: row.deal_name, stage: row.deal_stage ?? "prospecting", value: row.deal_value, nextStep: row.next_step, auditHistory: [audit("Imported from CSV")] });
+    data.activities.push({
+      id: id("activity"), accountId, contactId, type: "note",
+      summary: `Lead imported from CSV for ${row.company_name}.`,
+      source: { type: "user", label: "CSV import" }, createdAt: importedAt,
+      auditHistory: [audit("Lead imported from CSV")],
+    });
   });
   saveData(data); return data;
 }
