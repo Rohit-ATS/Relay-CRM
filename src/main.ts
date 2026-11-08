@@ -19,27 +19,31 @@ function renderLanding(): void {
     </main>`;
 }
 
-if (appPath() === "/docs" || appPath() === "/docs/") window.location.replace(landingDocsHref());
-else if (appPath() === "/landing") renderLanding();
-else {
-  window.addEventListener("popstate", () => renderWorkspace(app));
-  window.addEventListener("relay:cloud-status", () => renderWorkspace(app));
-  window.addEventListener("relay:cloud-data-updated", () => refreshWorkspaceFromStorage(app));
-  window.addEventListener("relay:workflow-updated", (event) => refreshWorkflowFromRealtime((event as CustomEvent<Record<string,unknown>>).detail));
-
-  document.addEventListener("click", (event) => {
-    const link = (event.target as HTMLElement).closest<HTMLAnchorElement>("a");
-    if (!link) return;
-    const href = link.getAttribute("href");
-    if (!href || href.startsWith("http") || href.startsWith("#") || href.startsWith("mailto:")) return;
-    const base = toHref("/").replace(/\/$/, "");
-    const normalized = href.startsWith(base) ? href.slice(base.length) || "/" : href;
-    if (normalized === "/docs" || normalized === "/docs/") return;
-    event.preventDefault();
-    history.pushState(null, "", toHref(normalized));
-    if (appPath() === "/landing") renderLanding(); else renderWorkspace(app);
-  });
-
-  renderWorkspace(app);
-  void initializeSupabaseWorkspace().then(() => renderWorkspace(app));
+const isLanding = () => appPath() === "/" || appPath() === "/landing";
+function renderRoute(): void {
+  const path = appPath();
+  if (path === "/docs" || path === "/docs/") window.location.replace(landingDocsHref());
+  else if (isLanding()) renderLanding();
+  else renderWorkspace(app);
 }
+
+window.addEventListener("popstate", renderRoute);
+window.addEventListener("relay:cloud-status", () => { if (!isLanding()) renderRoute(); });
+window.addEventListener("relay:cloud-data-updated", () => { if (!isLanding()) refreshWorkspaceFromStorage(app); });
+window.addEventListener("relay:workflow-updated", (event) => refreshWorkflowFromRealtime((event as CustomEvent<Record<string,unknown>>).detail));
+
+document.addEventListener("click", (event) => {
+  const link = (event.target as HTMLElement).closest<HTMLAnchorElement>("a");
+  if (!link) return;
+  const href = link.getAttribute("href");
+  if (!href || href.startsWith("http") || href.startsWith("#") || href.startsWith("mailto:")) return;
+  const base = toHref("/").replace(/\/$/, "");
+  const normalized = href.startsWith(base) ? href.slice(base.length) || "/" : href;
+  if (normalized === "/docs" || normalized === "/docs/") return;
+  event.preventDefault();
+  history.pushState(null, "", toHref(normalized));
+  renderRoute();
+});
+
+renderRoute();
+void initializeSupabaseWorkspace().then(() => { if (!isLanding()) renderRoute(); });
