@@ -4,6 +4,7 @@ export const requiredCsvHeaders = ["company_name", "contact_name", "deal_name"] 
 export const supportedCsvHeaders = [
   ...requiredCsvHeaders,
   "domain",
+  "linkedin_url",
   "contact_title",
   "contact_email",
   "deal_stage",
@@ -14,6 +15,7 @@ export const supportedCsvHeaders = [
 export type CsvImportRow = {
   company_name: string;
   domain?: string;
+  linkedin_url?: string;
   contact_name: string;
   contact_title?: string;
   contact_email?: string;
@@ -91,6 +93,7 @@ export function parseCsv(text: string): CsvPreview {
     rows.push({
       company_name: companyName,
       domain: record.domain?.trim() || undefined,
+      linkedin_url: record.linkedin_url?.trim() || undefined,
       contact_name: contactName,
       contact_title: record.contact_title?.trim() || undefined,
       contact_email: record.contact_email?.trim() || undefined,
@@ -105,7 +108,8 @@ export function parseCsv(text: string): CsvPreview {
 }
 
 export const sampleCsv = [
-  "company_name,domain,contact_name,contact_title,contact_email,deal_name,deal_stage,deal_value,next_step",
-  "Northstar Labs,northstarlabs.example,Avery Chen,Founder,avery@northstarlabs.example,Outbound CRM pilot,prospecting,18000,Confirm discovery call",
-  "Pinecone Systems,pinecone.example,Morgan Lee,VP Sales,morgan@pinecone.example,Revenue workflow review,engaged,32000,Send security overview",
+  [...supportedCsvHeaders].join(","),
+  "Northwind Analytics,northwind.example,https://linkedin.com/company/northwind-analytics,Avery Chen,VP of Sales,avery@example.test,CRM evaluation,prospecting,24000,Review current sales workflow",
+  "Juniper Cloud,juniper.example,https://linkedin.com/company/juniper-cloud,Jordan Lee,Founder,jordan@example.test,Pipeline visibility,engaged,18000,Schedule a discovery call",
+  "Copperline Health,copperline.example,,Morgan Patel,Operations Director,morgan@example.test,Account workflow review,prospecting,32000,Confirm evaluation timeline",
 ].join("\n");

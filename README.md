@@ -6,6 +6,8 @@
 
 ---
 
+**Current app entry points:** `npm run dev` starts the Vite CRM; `npm run server` starts its TypeScript AI/API service. The older FastAPI, Render, sample-data, and demo API notes later in this file describe legacy backend code and are not the authenticated Vite workspace.
+
 ## 🚀 Overview
 
 Relay turns lead lists into persistent customer records, tailored outreach plans, and human approval checkpoints, then continuously keeps records updated as conversations and replies happen.
@@ -16,7 +18,7 @@ Relay turns lead lists into persistent customer records, tailored outreach plans
 3. **Workflow Plan:** 3-step email outreach sequence with rationale, timing (`delay_days`), and editable drafts.
 4. **Approval Queue:** Human approval checkpoint (`approved` / `rejected`) that records state and immutable audit activity without claiming fake external delivery.
 5. **Inbound Update & Warm Handoff:** Prospect replies or call notes trigger sentiment/intent parsing, propose stage transitions, record audit history, and create high-priority tasks in the **Handoff Queue**.
-6. **Wren QA:** Built-in verification endpoints for **Workflow A (Import & Prepare)** and **Workflow B (Update & Handoff)**.
+6. **Wren QA:** Seldon's Wren is an external browser QA agent. Relay's Wren run instructions are in [`docs/wren-qa-plan.md`](docs/wren-qa-plan.md); only Wren's recorded browser run is evidence of Wren QA.
 
 ---
 
@@ -33,11 +35,10 @@ Relay turns lead lists into persistent customer records, tailored outreach plans
 
 ## 📡 Backend API Reference
 
-### 1. Health & Wren Proof
+### 1. Health & Legacy Verification
 - `GET /health` or `GET /api/health` — Service health check.
-- `GET /api/qa/status` — System readiness and record counts for Wren evaluation.
-- `GET /api/qa/verify-import` — Executes and verifies **Wren Workflow A** (CSV Import → Records → Brief → Sequence).
-- `GET /api/qa/verify-handoff` — Executes and verifies **Wren Workflow B** (Inbound reply → Deal stage progression → Activity → Handoff task).
+- `GET /api/qa/status` — Legacy FastAPI readiness and record counts.
+- `GET /api/qa/verify-import` and `GET /api/qa/verify-handoff` — Legacy state-changing checks. They may import bundled sample data or apply a canned reply; do not run against a real workspace and do not treat their output as Seldon Wren evidence.
 
 ### 2. Lead Import & Sample
 - `GET /api/import/sample` — Download sample B2B outbound CSV (`sample_leads.csv`).
@@ -219,26 +220,38 @@ The backend uses the provider settings in `backend/.env.example`; if provider cr
 
 ## Relay workspace
 
-The Vite app opens on the Dashboard at `/` (also `/dashboard` and `/workspace`). Its left navigation includes Action Center, Accounts, Pipeline, People, Tasks, Notes, Reports, Automations, Documentation, Settings, and Log out. Handoffs appear in Dashboard and Tasks; there is no separate Handoff Queue screen.
+The existing landing page is preserved. The Vite CRM requires Supabase email and password authentication; there is no local demo workspace and the CRM starts empty until real records are imported. The workspace uses Supabase Postgres as its source of truth and Realtime subscriptions for account, contact, deal, activity, sequence, approval, handoff, and agent-run changes.
 
-Pipeline columns use recorded call notes, simulated prospect replies, and deals explicitly marked lost. Sequence approval records a human decision for workflow tracking and never sends an email. AI sequence output is generated server-side and Zod validated; if credentials are absent or the provider fails, Relay returns a labeled deterministic fixture.
+Import a real CSV in **Accounts**. Add `linkedin_url` to the header to retain a supplied public profile URL. In **Automations**, Relay runs Google Search grounded research and then creates an editable, Zod-validated outreach draft. The research facts carry source links. Sequence approval records a human decision only; it does not send a message. A reply or call note is analyzed by the CRM Steward and CRM changes are applied only after confirmation.
 
-For the demo: import sample leads from **Accounts**, inspect/approve plans in **Action Center** (or open **Automations** to review an account-specific plan), log a simulated reply or call note from an account detail, confirm the proposed CRM update, then return to Dashboard to see the changed deal, timeline, and handoff task. **Settings → Reset demo data** restores seeded records in local browser storage.
-
-The screenshot-inspired marketing page is available at `/landing`. The optional Next.js app remains available through `npm run dev:full` or `npm run dev:next`.
+The Workflows page displays research → personalized plan → approval → delivery readiness on a dotted-grid canvas. Users can add/reorder steps; graphs are workspace-scoped and synced through Realtime. Autonomous outbound execution is not enabled.
 
 ## Gemini + Supabase
 
-The existing landing page, Vite workspace, FastAPI API, SQLite demo mode, and deterministic fixtures remain available. The TypeScript API on port `8787` now uses the official `@google/genai` SDK when `GEMINI_API_KEY` is configured; otherwise each agent returns a labeled deterministic fixture. Server prompts live in `server/agents/prompts/`, and output is validated with Zod before returning. The endpoints are `/api/sequence`, `/api/agents/research`, and `/api/agents/steward` through the Vite `/api` proxy. These agents propose data only; they do not send outreach or commit CRM mutations.
+The server uses the official `@google/genai` SDK. It does not return deterministic output when Gemini is missing or fails. Lead research enables Gemini Google Search grounding and requires verifiable source chunks; failures are shown in the workspace. See [Google Search grounding](https://ai.google.dev/gemini-api/docs/google-search?hl=en) and [Gemini model IDs](https://ai.google.dev/gemini-api/docs/models?hl=en).
 
-The Supabase migration at [`supabase/migrations/202611070001_relay_core.sql`](supabase/migrations/202611070001_relay_core.sql) defines workspace-owned CRM, workflow, approval, and agent-run tables. RLS requires Supabase Auth membership; new Auth users receive a private workspace. Realtime publication includes `agent_runs`, `activities`, `accounts`, `deals`, and `handoff_tasks`. The Vite browser client uses the publishable key plus the signed-in user's Auth session, so database access remains subject to RLS. `SUPABASE_SECRET_KEY` is not used by the app and must never be exposed in browser code.
+CRM RLS requires a signed-in user with workspace membership. The browser uses only the Supabase publishable key and the user's Auth session. Keep `SUPABASE_SECRET_KEY`, Gemini, and LinkedIn credentials server-side. The checked-in migrations include workspace tables, RLS, LinkedIn token storage, membership backfill, authenticated grants, and Realtime source/sequence tables.
 
-To configure an actual Supabase project:
+1. In the repo-root `.env.local`, set `VITE_SUPABASE_URL`, `VITE_SUPABASE_PUBLISHABLE_KEY`, `SUPABASE_URL`, and `SUPABASE_PUBLISHABLE_KEY` from the Supabase project's API settings. Keep any secret key only in `SUPABASE_SECRET_KEY`.
+2. Add `GEMINI_API_KEY` from Google AI Studio and keep `GEMINI_MODEL=gemini-3.8-flash` (or a model currently enabled for your project). Google Search grounding may be billed per search query.
+3. Apply migrations with `npx supabase link --project-ref <your-project-ref>` and `npx supabase db push --linked`. Migrations `202611070005_realtime_contacts_and_sources.sql` through `202611070007_sequence_channel_types.sql` have been applied to Relay's linked project.
+4. In Supabase **Authentication → URL Configuration**, add `http://localhost:5173/settings` to Redirect URLs. Turn on email/password auth. If email confirmations are enabled, confirm your account before password sign-in.
+5. Run `npm run dev` and `npm run server` in separate terminals from the repo root. The TypeScript server loads root `.env.local` itself. Restart both after editing variables.
 
-1. Put the project URL and publishable key in the repo-root `.env.local` as `VITE_SUPABASE_URL` and `VITE_SUPABASE_PUBLISHABLE_KEY`. Restart Vite after changing the file. Set `GEMINI_API_KEY` separately if you want live Gemini output; otherwise labeled fixtures are used.
-2. Apply the checked-in SQL migration with `npx supabase link --project-ref YOUR_PROJECT_REF` and `npx supabase db push --linked`.
-3. In Supabase **Authentication → URL Configuration**, set the local Site URL to `http://localhost:5173` and add `http://localhost:5173/settings` to Redirect URLs. Email magic-link sign-in is initiated from Relay **Settings**. New users get a private workspace from the migration trigger.
-4. Start `npm run dev`. In a second terminal, load the server-only settings and start the Gemini API: `set -a; source .env.local; set +a; npm run server`.
-5. In Relay **Settings**, send yourself a sign-in link. If the Supabase workspace is empty, click **Sync local CRM records to Supabase** to initialize it. This explicit action copies the current browser records once; subsequent changes sync automatically. If cloud records already exist, they load into the app. Settings → Reset demo data resets the connected workspace too.
+Google Search grounding provides sourced public web research, not privileged access to LinkedIn profiles. An imported person's name or URL is a search query; the app must treat identity matches and LinkedIn activity as uncertain unless sources directly support them.
 
-Without Supabase browser credentials or an Auth session, the landing page and local demo workspace continue to work in browser storage. No secrets are checked into this repository.
+## LinkedIn integration
+
+The **Integrations** page connects a signed-in Relay workspace to LinkedIn with the member's consent. It currently supports read-only company organization lookup by LinkedIn page vanity name through the Community Management API. It does not search arbitrary people, post content, or send messages. Results are returned with a LinkedIn source label; LinkedIn may limit fields when the member is not an administrator of that organization. Gmail is shown as **Coming soon**.
+
+### Set up LinkedIn OAuth
+
+1. In the [LinkedIn Developer Portal](https://www.linkedin.com/developers/apps), select your app and confirm the **Community Management API** product is approved. In the app's Auth tab, confirm `rw_organization_admin` is available. The Relay flow also requests OpenID scopes `openid profile email` so it can show which LinkedIn member connected.
+2. Add this exact **Authorized redirect URL** in the LinkedIn app (adjust host/port only if your local API uses different values): `http://localhost:8787/api/integrations/linkedin/callback`.
+3. In repo-root `.env.local`, set `LINKEDIN_CLIENT_ID`, `LINKEDIN_CLIENT_SECRET`, and `LINKEDIN_REDIRECT_URI` to your app values. Keep the client secret server-side. Set `LINKEDIN_SCOPES=openid profile email rw_organization_admin` only if those scopes are listed for your app.
+4. The token is encrypted at rest. Generate `LINKEDIN_TOKEN_ENCRYPTION_KEY` with `openssl rand -base64 32` and `LINKEDIN_OAUTH_STATE_SECRET` with `openssl rand -hex 32`. Add both to `.env.local`. Also set `SUPABASE_SECRET_KEY` to the project's server-only secret key; never prefix it with `VITE_` or put it in client code. `RELAY_APP_URL` defaults to `http://localhost:5173`.
+5. Apply the token-storage migration: `npx supabase db push --linked`. It creates `public.linkedin_connections` with RLS enabled and no browser policies.
+6. Start both processes from the repo root. Terminal 1: `set -a; source .env.local; set +a; npm run server`. Terminal 2: `npm run dev`. Sign in to Relay's Supabase workspace, open **Integrations**, and click **Connect LinkedIn**.
+7. After consent, enter a company-page vanity name from its LinkedIn URL (for example, `linkedin`) to run an Organization Lookup. API calls include LinkedIn's monthly `Linkedin-Version` header; update `LINKEDIN_API_VERSION` from LinkedIn's current versioning docs when you upgrade.
+
+Relay stores the LinkedIn access token encrypted in Supabase and exposes only connection metadata to the browser. LinkedIn tokens expire; reconnect from Integrations when prompted. Disconnecting removes the stored Relay token. LinkedIn may also need to be removed from the member's authorized apps to revoke the grant itself.

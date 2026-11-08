@@ -1,268 +1,115 @@
-import { importRows, loadData, resetData, saveData, type RelayData } from "./lib/crm-store";
+import { importRows, loadData, saveData, type RelayData} from "./lib/crm-store";
 import { parseCsv, sampleCsv, supportedCsvHeaders, type CsvPreview } from "./lib/csv-import";
-import type { Account, GeneratedSequenceResult } from "./shared/contracts";
-import { getCloudStatus, sendCloudMagicLink, signOutCloud, flushCloudSync, initializeCloudFromLocal, startCloudAgentRun, finishCloudAgentRun } from "./lib/supabase-sync";
+import type { Account, GeneratedSequenceResult, SequenceChannel } from "./shared/contracts";
+import { getCloudStatus, signInWithPasswordCloud, signUpWithPasswordCloud, setCloudPassword, signOutCloud, startCloudAgentRun, finishCloudAgentRun } from "./lib/supabase-sync";
+import { getSupabaseBrowserClient } from "./lib/supabase-realtime";
 
 let data: RelayData = loadData();
 let preview: CsvPreview | null = null;
 let sequence: { accountId: string; loading?: boolean; error?: string; result?: GeneratedSequenceResult } | undefined;
-let proposal: { accountId: string; summary: string; nextStep: string } | undefined;
+let proposal: { accountId: string; summary: string; nextStep: string; interactionType: "prospect_reply" | "call_note"; provider: "gemini"; confidence: number; recommendHandoff: boolean; proposedStage?: string; taskReason: string } | undefined;
 let inputError = "";
 let importText = "";
-let interactionSource = "Simulated prospect reply";
+let interactionSource = "Prospect reply";
 let actionStatus = "";
 let actionBusy = false;
+let activeStewardRunId: string | undefined;
 let settingsStatus = "";
 let settingsStatusIsError = false;
+let linkedinStatus: { configured?: boolean; connected?: boolean; needsSignIn?: boolean; memberName?: string; expiresAt?: string; scopes?: string[]; missing?: string[]; message?: string } = {};
+let linkedinNotice = "";
+let linkedinNoticeIsError = false;
+let linkedinLookupResult: unknown;
+let linkedinLookupError = "";
+let linkedinBusy = false;
+let linkedinStatusLoaded = false;
+type WorkflowNode = { id:string; kind:string; title:string; description:string; status:"ready"|"blocked" };
+type WorkflowGraph = { id:string; workspace_id:string; account_id:string; user_id:string; name:string; nodes:WorkflowNode[]; edges:{id:string;from:string;to:string}[]; status:string };
+const workflowGraphs = new Map<string,WorkflowGraph>();
+const workflowLoads = new Set<string>();
+let workspaceRoot:HTMLDivElement|null=null;
 const esc = (v: unknown) => String(v ?? "").replace(/[&<>"']/g, c => ({ "&":"&amp;", "<":"&lt;", ">":"&gt;", '"':"&quot;", "'":"&#39;" }[c]!));
 const money = (v?: number) => v == null ? "—" : new Intl.NumberFormat("en-US",{style:"currency",currency:"USD",maximumFractionDigits:0}).format(v);
 const id = (prefix: string) => `${prefix}_${crypto.randomUUID()}`;
 const stamp = () => new Date().toISOString();
 export const getBasePath = () => location.pathname.startsWith("/Relay-CRM") ? "/Relay-CRM" : "";
-export const toHref = (p: string) => `${getBasePath()}${p.startsWith("/") ? p : `/${p}`}`;
-export const appPath = () => {
-  const base = getBasePath();
-  let p = location.pathname;
-  if (base && p.startsWith(base)) {
-    p = p.slice(base.length);
-  }
-  return p || "/";
-};
-
-let tourOpen = typeof window !== "undefined" && new URLSearchParams(location.search).get("tour") === "1";
-let tourStep = 1;
-let tourDockVisible = false;
-let tourMinimized = false;
-let tourCelebration = false;
-
-function renderTourOverlay(): string {
-  if (tourCelebration) {
-    return `
-      <div class="tour-modal-backdrop" id="tour-celebration-backdrop">
-        <div class="tour-welcome-modal" style="text-align: center; max-width: 560px;">
-          <div style="font-size: 42px; margin-bottom: 12px;">🏆</div>
-          <span class="tour-badge" style="background: #ecfdf5; color: #059669;">ALL 4 WORKFLOWS VERIFIED</span>
-          <h2>Outbound Loop Successfully Completed!</h2>
-          <p class="tour-intro">You’ve experienced the end-to-end Relay CRM loop: Ingestion ➔ Grounded Account Brief ➔ Human Approval ➔ Inbound Intent Analysis ➔ Warm Handoff Queue.</p>
-          <div style="background: #f9fafb; border: 1px solid #e5e7eb; border-radius: 12px; padding: 16px; text-align: left; margin-bottom: 24px; display: grid; gap: 8px; font-size: 13px;">
-            <div style="color: #059669; font-weight: 600;">✓ 01 · Lead Ingestion & Sourced Briefs Verified</div>
-            <div style="color: #059669; font-weight: 600;">✓ 02 · Human-in-the-Loop Sequence Approval Verified</div>
-            <div style="color: #059669; font-weight: 600;">✓ 03 · Inbound Signal Intent Detection Verified</div>
-            <div style="color: #059669; font-weight: 600;">✓ 04 · Automated Warm Handoff & Audit Trail Verified</div>
-          </div>
-          <div style="display: flex; gap: 10px; justify-content: center;">
-            <button class="tour-btn-primary" id="tour-celebration-close">Explore Full CRM Workspace ↗</button>
-          </div>
-        </div>
-      </div>
-    `;
-  }
-
-  if (tourOpen) {
-    return `
-      <div class="tour-modal-backdrop" id="tour-welcome-backdrop">
-        <div class="tour-welcome-modal">
-          <span class="tour-badge">✦ GUIDED DEMO TOUR · 2-MINUTE ONBOARDING</span>
-          <h2>Welcome to the Relay CRM Demo</h2>
-          <p class="tour-intro">Relay is an AI-native CRM for founder-led sales teams. Experience how the complete outbound loop functions without manual bookkeeping:</p>
-          <div class="tour-steps-grid">
-            <div class="tour-step-card">
-              <div class="tour-step-top"><span class="tour-step-num">01 · INGEST LEADS</span><span class="tour-step-icon">📥</span></div>
-              <b>Lead CSV Ingestion</b>
-              <p>Upload raw lists to generate structured Account, Contact, and Deal records automatically.</p>
-            </div>
-            <div class="tour-step-card">
-              <div class="tour-step-top"><span class="tour-step-num">02 · HUMAN IN THE LOOP</span><span class="tour-step-icon">✍️</span></div>
-              <b>Review Outreach Sequences</b>
-              <p>AI writes 3-touch emails tailored to pain points. You retain full approval before anything moves.</p>
-            </div>
-            <div class="tour-step-card">
-              <div class="tour-step-top"><span class="tour-step-num">03 · SIGNAL DETECTION</span><span class="tour-step-icon">⚡</span></div>
-              <b>Inbound Reply Analysis</b>
-              <p>Prospect shows interest. AI extracts intent and proposes advancing deal stage to Demo Scheduled.</p>
-            </div>
-            <div class="tour-step-card">
-              <div class="tour-step-top"><span class="tour-step-num">04 · WARM HANDOFF</span><span class="tour-step-icon">🤝</span></div>
-              <b>Handoff Task Queue</b>
-              <p>Auto-generates high-priority tasks with full buyer context and immutable audit trails.</p>
-            </div>
-          </div>
-          <div class="tour-modal-actions">
-            <span style="font-size: 12px; color: #6b7280;">Demo mode · Simulated actions safe to run</span>
-            <div class="tour-modal-buttons">
-              <button class="tour-btn-quiet" id="tour-welcome-skip">Skip & Explore</button>
-              <button class="tour-btn-primary" id="tour-welcome-start">Start Guided Tour ➔</button>
-            </div>
-          </div>
-        </div>
-      </div>
-    `;
-  }
-
-  if (tourDockVisible) {
-    if (tourMinimized) {
-      return `
-        <div class="tour-dock-minimized" id="tour-dock-unminimize" title="Click to expand tour guide">
-          <i></i> <b>Tour: Step ${tourStep} of 4</b> <span>↗</span>
-        </div>
-      `;
-    }
-
-    const steps = [
-      {
-        num: 1,
-        title: "Step 1: Accounts & Ingestion",
-        desc: "Ingest CSV contacts and create linked Accounts, Contacts, and Opportunities with automatic fact labeling.",
-        actionLabel: "Go to Accounts",
-        actionPath: "/accounts"
-      },
-      {
-        num: 2,
-        title: "Step 2: Action Center & Approvals",
-        desc: "Review batch outreach sequences before they are recorded. No unapproved external messages are sent.",
-        actionLabel: "Go to Action Center",
-        actionPath: "/action-center"
-      },
-      {
-        num: 3,
-        title: "Step 3: Outreach Sequences & AI Drafts",
-        desc: "Personalized 3-step sequences with delay timing and grounded facts, verified by Gemini and Zod.",
-        actionLabel: "Go to Automations",
-        actionPath: "/automations"
-      },
-      {
-        num: 4,
-        title: "Step 4: Contextual Inbound & Warm Handoffs",
-        desc: "Simulate prospect replies, capture buyer intent, update deal stages, and auto-assign follow-up tasks.",
-        actionLabel: "Go to Tasks",
-        actionPath: "/tasks"
-      }
-    ];
-    const cur = steps[tourStep - 1]!;
-    const pct = (tourStep / 4) * 100;
-
-    return `
-      <div class="tour-dock">
-        <div class="tour-dock-bar">
-          <div class="tour-dock-progress" style="width: ${pct}%"></div>
-        </div>
-        <div class="tour-dock-header">
-          <span><i></i> STEP ${tourStep} OF 4</span>
-          <div class="tour-dock-controls">
-            <button class="tour-dock-btn" id="tour-dock-minimize" title="Minimize">−</button>
-            <button class="tour-dock-btn" id="tour-dock-close" title="Close tour">×</button>
-          </div>
-        </div>
-        <div class="tour-dock-body">
-          <div class="tour-dock-title">${cur.title}</div>
-          <div class="tour-dock-desc">${cur.desc}</div>
-          <button class="tour-dock-action-btn" id="tour-dock-action" data-path="${cur.actionPath}">
-            ${cur.actionLabel} ➔
-          </button>
-        </div>
-        <div class="tour-dock-footer">
-          <button class="tour-reset-btn" id="tour-dock-reset">↺ Reset</button>
-          <div class="tour-dock-nav">
-            <button class="tour-nav-btn" id="tour-dock-prev" ${tourStep === 1 ? "disabled" : ""}>←</button>
-            <button class="tour-nav-btn tour-nav-next" id="tour-dock-next">
-              ${tourStep === 4 ? "Finish Tour ✓" : "Next →"}
-            </button>
-          </div>
-        </div>
-      </div>
-    `;
-  }
-
-  return "";
+export const toHref = (path:string) => `${getBasePath()}${path.startsWith("/")?path:`/${path}`}`;
+export const appPath = () => { const base=getBasePath(); const path=location.pathname; return (base&&path.startsWith(base)?path.slice(base.length):path)||"/"; };
+export const landingDocsHref = () => import.meta.env.DEV
+  ? "https://rohit-ats.github.io/Relay-CRM/docs/"
+  : toHref("/docs/");
+const channelLabel=(channel:SequenceChannel)=>channel==="linkedin_manual"?"LinkedIn · manual":channel==="manual_review"?"Manual review":"Email draft";
+async function workspaceAuthorization(): Promise<Record<string,string>> {
+  const client = getSupabaseBrowserClient();
+  if (!client) throw new Error("Supabase is not configured.");
+  const { data, error } = await client.auth.getSession();
+  if (error) throw error;
+  if (!data.session) throw new Error("Sign in to your Relay workspace first.");
+  return { authorization: `Bearer ${data.session.access_token}` };
 }
-
-function attachTourListeners(app: HTMLDivElement): void {
-  document.querySelectorAll<HTMLButtonElement>("#tour-topbar-pill-btn").forEach(btn => {
-    btn.addEventListener("click", () => {
-      tourOpen = true;
-      renderWorkspace(app);
-    });
-  });
-
-  document.querySelector<HTMLButtonElement>("#tour-welcome-skip")?.addEventListener("click", () => {
-    tourOpen = false;
-    renderWorkspace(app);
-  });
-
-  document.querySelector<HTMLButtonElement>("#tour-welcome-start")?.addEventListener("click", () => {
-    tourOpen = false;
-    tourDockVisible = true;
-    tourStep = 1;
-    renderWorkspace(app);
-  });
-
-  document.querySelector<HTMLButtonElement>("#tour-dock-minimize")?.addEventListener("click", () => {
-    tourMinimized = true;
-    renderWorkspace(app);
-  });
-
-  document.querySelector<HTMLDivElement>("#tour-dock-unminimize")?.addEventListener("click", () => {
-    tourMinimized = false;
-    renderWorkspace(app);
-  });
-
-  document.querySelector<HTMLButtonElement>("#tour-dock-close")?.addEventListener("click", () => {
-    tourDockVisible = false;
-    renderWorkspace(app);
-  });
-
-  document.querySelector<HTMLButtonElement>("#tour-dock-action")?.addEventListener("click", (e) => {
-    const targetPath = (e.currentTarget as HTMLButtonElement).dataset.path;
-    if (targetPath) {
-      history.pushState(null, "", toHref(targetPath));
-      renderWorkspace(app);
-    }
-  });
-
-  document.querySelector<HTMLButtonElement>("#tour-dock-prev")?.addEventListener("click", () => {
-    if (tourStep > 1) {
-      tourStep--;
-      renderWorkspace(app);
-    }
-  });
-
-  document.querySelector<HTMLButtonElement>("#tour-dock-next")?.addEventListener("click", () => {
-    if (tourStep < 4) {
-      tourStep++;
-      renderWorkspace(app);
-    } else {
-      tourDockVisible = false;
-      tourCelebration = true;
-      renderWorkspace(app);
-    }
-  });
-
-  document.querySelector<HTMLButtonElement>("#tour-celebration-close")?.addEventListener("click", () => {
-    tourCelebration = false;
-    renderWorkspace(app);
-  });
-
-  document.querySelector<HTMLButtonElement>("#tour-dock-reset")?.addEventListener("click", () => {
-    data = resetData();
-    renderWorkspace(app);
-  });
+function defaultWorkflowGraph(account:Account, result?:GeneratedSequenceResult):WorkflowGraph {
+  const cloud=getCloudStatus();
+  const nodes:WorkflowNode[]=[
+    {id:crypto.randomUUID(),kind:"lead_research",title:"Research lead",description:result?`${result.facts.length} cited findings · Google Search grounded`:"Research public sources about this lead",status:"ready"},
+    {id:crypto.randomUUID(),kind:"outreach_planner",title:"Build personalized plan",description:result?`${result.steps.length} email drafts generated by Gemini`:`Create a sourced outreach plan for ${account.companyName}`,status:"ready"},
+    {id:crypto.randomUUID(),kind:"human_approval",title:"Human approval",description:"Review before any external action",status:"ready"},
+    {id:crypto.randomUUID(),kind:"delivery",title:"External delivery",description:"Gmail is not connected; LinkedIn personal messaging is unavailable",status:"blocked"},
+  ];
+  return {id:crypto.randomUUID(),workspace_id:cloud.workspaceId??"",account_id:account.id,user_id:"",name:`${account.companyName} outreach`,nodes,edges:nodes.slice(1).map((node,i)=>({id:crypto.randomUUID(),from:nodes[i].id,to:node.id})),status:result?"awaiting_approval":"draft"};
+}
+async function persistWorkflowGraph(account:Account, graph:WorkflowGraph):Promise<void> {
+  const client=getSupabaseBrowserClient();
+  if(!client)throw new Error("Supabase is not configured.");
+  const {data,error}=await client.auth.getSession();
+  if(error)throw error;
+  if(!data.session||!getCloudStatus().workspaceId)throw new Error("Sign in to a Relay workspace first.");
+  graph.workspace_id=getCloudStatus().workspaceId!;graph.account_id=account.id;graph.user_id=data.session.user.id;
+  const {error:writeError}=await client.from("workflows").upsert({...graph,updated_at:new Date().toISOString()},{onConflict:"workspace_id,account_id"});
+  if(writeError)throw writeError;
+}
+async function loadWorkflowGraph(account:Account,onLoaded:()=>void):Promise<void> {
+  if(workflowLoads.has(account.id))return;
+  workflowLoads.add(account.id);
+  try{
+    const client=getSupabaseBrowserClient(),cloud=getCloudStatus();
+    if(!client||!cloud.workspaceId)return;
+    const {data,error}=await client.from("workflows").select("*").eq("workspace_id",cloud.workspaceId).eq("account_id",account.id).maybeSingle();
+    if(error)throw error;
+    const graph=(data as WorkflowGraph|null)??defaultWorkflowGraph(account);
+    workflowGraphs.set(account.id,graph);
+    if(!data)await persistWorkflowGraph(account,graph);
+  }catch(error){actionStatus=error instanceof Error?`Workflow could not load: ${error.message}`:"Workflow could not load."}
+  onLoaded();
 }
 
 export function renderWorkspace(app: HTMLDivElement): void {
+  workspaceRoot=app;
   const path = appPath();
+  if(path!=="/settings"&&path!=="/logout"&&!getCloudStatus().connected)return settings(app);
   if (path.startsWith("/accounts/")) return detail(app, decodeURIComponent(path.split("/")[2] ?? ""));
   if (path === "/accounts") return accounts(app);
   if (path === "/pipeline" || path === "/review") return pipeline(app);
-  if (path === "/action-center" || path === "/handoffs") return dashboard(app, true);
+  if (path === "/action-center") { history.replaceState(null, "", toHref("/dashboard")); return dashboard(app); }
+  if (path === "/handoffs") return tasks(app);
   if (path === "/people") return people(app);
   if (path === "/tasks") return tasks(app);
   if (path === "/notes") return notes(app);
   if (path === "/reports") return reports(app);
   if (path === "/automations") return review(app);
-  if (path === "/documentation") { location.href = toHref("/docs"); return; }
+  if (path === "/documentation") { location.replace(landingDocsHref()); return; }
+  if (path === "/integrations") return integrations(app);
   if (path === "/settings") return settings(app);
   if (path === "/logout") return logout(app);
   dashboard(app);
+}
+
+export function refreshWorkflowFromRealtime(record:Record<string,unknown>):void {
+  const accountId=typeof record.account_id==="string"?record.account_id:"";
+  if(!accountId)return;
+  if(Array.isArray(record.nodes))workflowGraphs.set(accountId,record as unknown as WorkflowGraph);
+  else workflowGraphs.delete(accountId);
+  workflowLoads.add(accountId);
+  if(workspaceRoot&&appPath()==="/automations")renderWorkspace(workspaceRoot);
 }
 
 /** Re-hydrate the module's view model after Supabase refreshes local storage. */
@@ -274,105 +121,153 @@ export function refreshWorkspaceFromStorage(app: HTMLDivElement): void {
 function frame(app: HTMLDivElement, active: string, html: string): void {
   const brandLogo = `<a class="workspace-brand" href="/" title="Back to landing page"><i><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.8" stroke-linecap="round"><line x1="12" y1="2.5" x2="12" y2="21.5"></line><line x1="2.5" y1="12" x2="21.5" y2="12"></line><line x1="5.28" y1="5.28" x2="18.72" y2="18.72"></line><line x1="18.72" y1="5.28" x2="5.28" y2="18.72"></line></svg></i>relay<span class="brand-dot">.</span></a>`;
   const nav = (key:string,label:string,icon:string,href:string,count=0) => `<a class="${active===key?"active":""}" href="${href}"><i>${icon}</i>${label}${count?`<span>${count}</span>`:""}</a>`;
-  app.innerHTML = `<main class="workspace-shell"><aside class="workspace-sidebar">${brandLogo}<a class="quick-action" href="/action-center"><i>⌘</i> Action center <kbd>${data.accounts.filter(a=>!data.sequences.some(s=>s.accountId===a.id&&s.status==="approved")).length}</kbd></a><small class="workspace-label">WORKSPACE</small><nav class="app-nav">${nav("dashboard","Dashboard","⌂","/dashboard")}${nav("action-center","Action center","✦","/action-center",data.accounts.filter(a=>!data.sequences.some(s=>s.accountId===a.id&&s.status==="approved")).length)}${nav("accounts","Accounts","▤","/accounts")}${nav("pipeline","Pipeline","▥","/pipeline")}${nav("people","People","♙","/people")}${nav("tasks","Tasks","☑","/tasks",data.handoffs.filter(h=>h.status==="open").length)}${nav("notes","Notes","▧","/notes")}<span class="nav-section-label">INSIGHTS</span>${nav("reports","Reports","▥","/reports")}${nav("automations","Automations","▷","/automations")}${nav("docs","Documentation","▤","/docs")}</nav><div class="sidebar-bottom">${nav("settings","Settings","⚙","/settings")}${nav("logout","Log out","⇥","/logout")}<small>${getCloudStatus().connected ? "LIVE WORKSPACE · SUPABASE" : "DEMO WORKSPACE · DATA SAVED LOCALLY"}</small></div></aside><section class="workspace-main"><header class="workspace-mobile-head">${brandLogo}<select aria-label="Navigate" id="mobile-nav"><option value="/dashboard">Dashboard</option><option value="/action-center">Action center</option><option value="/accounts">Accounts</option><option value="/pipeline">Pipeline</option><option value="/people">People</option><option value="/tasks">Tasks</option><option value="/notes">Notes</option><option value="/reports">Reports</option><option value="/automations">Automations</option><option value="/docs">Documentation</option><option value="/settings">Settings</option><option value="/logout">Log out</option></select></header>${html}</section></main>${renderTourOverlay()}`;
-  document.querySelector<HTMLSelectElement>("#mobile-nav")?.addEventListener("change",e=>{location.href=(e.target as HTMLSelectElement).value});
-  for (const selector of ["#reset-data", "#reset-mobile"]) document.querySelector<HTMLButtonElement>(selector)?.addEventListener("click",()=>{data=resetData();preview=null;importText="";sequence=undefined;proposal=undefined;inputError="";renderWorkspace(app);});
-  attachTourListeners(app);
+  app.innerHTML = `<main class="workspace-shell"><aside class="workspace-sidebar">${brandLogo}<small class="workspace-label">WORKSPACE</small><nav class="app-nav">${nav("dashboard","Dashboard","⌂","/dashboard")}${nav("accounts","Accounts","▤","/accounts")}${nav("pipeline","Pipeline","▥","/pipeline")}${nav("people","People","♙","/people")}${nav("tasks","Tasks","☑","/tasks",data.handoffs.filter(h=>h.status==="open").length)}${nav("notes","Notes","▧","/notes")}<span class="nav-section-label">INSIGHTS</span>${nav("reports","Reports","▥","/reports")}${nav("automations","Workflows","▷","/automations")}${nav("documentation","Documentation","▤",landingDocsHref())}${nav("integrations","Integrations","⎆","/integrations")}</nav><div class="sidebar-bottom">${nav("settings","Settings","⚙","/settings")}${nav("logout","Log out","⇥","/logout")}<small>${getCloudStatus().connected ? "LIVE WORKSPACE · SUPABASE" : "AUTH REQUIRED"}</small></div></aside><section class="workspace-main"><header class="workspace-mobile-head">${brandLogo}<select aria-label="Navigate" id="mobile-nav"><option value="/dashboard">Dashboard</option><option value="/accounts">Accounts</option><option value="/pipeline">Pipeline</option><option value="/people">People</option><option value="/tasks">Tasks</option><option value="/notes">Notes</option><option value="/reports">Reports</option><option value="/automations">Workflows</option><option value="${landingDocsHref()}">Documentation</option><option value="/integrations">Integrations</option><option value="/settings">Settings</option><option value="/logout">Log out</option></select></header>${html}</section></main>`;
+  document.querySelector<HTMLSelectElement>("#mobile-nav")?.addEventListener("change",e=>{const target=(e.target as HTMLSelectElement).value;location.href=target.startsWith("http")?target:toHref(target)});
 }
-function heading(kicker: string,title: string,desc: string, right=""): string {
-  return `<header class="topbar"><div><p class="eyebrow">${kicker}</p><h1>${title}<span class="orange">.</span></h1><p class="subhead">${desc}</p></div><div style="display:flex;align-items:center;gap:10px;margin-left:auto;"><button id="tour-topbar-pill-btn" class="tour-topbar-pill"><i></i> Guided Demo Tour</button>${right}</div></header>`;
-}
+function heading(kicker: string,title: string,desc: string, right=""): string { return `<header class="topbar"><div><p class="eyebrow">${kicker}</p><h1>${title}<span class="orange">.</span></h1><p class="subhead">${desc}</p></div>${right}</header>`; }
 
 function pendingAccounts(): Account[] { return data.accounts.filter(a=>!data.sequences.some(s=>s.accountId===a.id&&s.status==="approved")); }
-function dashboard(app: HTMLDivElement, focusActions=false): void {
+function dashboard(app: HTMLDivElement): void {
  const pipelineValue=data.deals.reduce((sum,d)=>sum+(d.value??0),0), openTasks=data.handoffs.filter(h=>h.status==="open"), pending=pendingAccounts();
- frame(app,focusActions?"action-center":"dashboard",`${heading(focusActions?"WORKFLOW APPROVALS":"YOUR SALES WORKSPACE",focusActions?"Action center":"Dashboard","Keep the pipeline, people, and next steps moving from one place.",`<a href="/accounts" class="button primary">＋ Import leads</a>`)}<section class="stat-grid dashboard-stats"><article><small>OPEN PIPELINE</small><b>${money(pipelineValue)}</b><span>${data.deals.length} linked opportunities</span></article><article><small>ACCOUNTS</small><b>${String(data.accounts.length).padStart(2,"0")}</b><span>Persistent CRM records</span></article><article><small>AWAITING APPROVAL</small><b>${String(pending.length).padStart(2,"0")}</b><span>Human decision required</span></article><article class="stat-warm"><small>OPEN HANDOFFS</small><b>${String(openTasks.length).padStart(2,"0")}</b><span>Suggested human follow-ups</span></article></section><div class="dashboard-columns"><section class="panel action-center-panel" id="action-center"><div class="panel-head-row"><div><p class="eyebrow">ACTION CENTER</p><h2>Decisions waiting on you</h2><p class="muted">Approval records your choice for workflow tracking. No email is sent.</p></div>${pending.length?`<button id="approve-all" class="button primary" ${actionBusy?"disabled":""}>${actionBusy?"Approving…":`Approve all (${pending.length})`}</button>`:""}</div>${actionStatus?`<div class="alert ${actionStatus.startsWith("Could not")?"error":"success"}" role="status">${esc(actionStatus)}</div>`:""}${pending.length?`<div class="approval-list">${pending.map(a=>{const c=data.contacts.find(x=>x.accountId===a.id);return `<article class="approval-row"><span class="approval-avatar">${esc(a.companyName.split(/\s+/).map(x=>x[0]).slice(0,2).join(""))}</span><div><b>${esc(a.companyName)}</b><p>${esc(c?.name)} · plan can be generated and approved</p></div><a href="/automations?account=${encodeURIComponent(a.id)}">Review</a><button class="button mini-button" data-approve-account="${a.id}" ${actionBusy?"disabled":""}>${actionBusy?"Working…":"Approve plan"}</button></article>`}).join("")}</div>`:`<div class="empty-state compact-empty"><h3>All caught up</h3><p>There are no unapproved sequence plans. Import a lead to start another workflow.</p></div>`}</section><section class="panel handoff-preview"><div class="panel-head-row"><div><p class="eyebrow">HUMAN HANDOFFS</p><h2>Next steps for your team</h2><p class="muted">Created after a person confirms a CRM update.</p></div><a href="/tasks" class="text-link">View tasks ↗</a></div>${openTasks.length?openTasks.slice(0,4).map(h=>`<article class="handoff-row"><div><a href="/accounts/${encodeURIComponent(h.accountId)}"><b>${esc(data.accounts.find(a=>a.id===h.accountId)?.companyName??"Account")}</b></a><p>${esc(h.title)} · ${esc(h.reason)}</p></div><button class="button secondary" data-complete-task="${h.id}">Mark done</button></article>`).join(""):`<div class="empty-state compact-empty"><h3>No open handoffs</h3><p>Confirmed positive replies and call notes will appear here.</p><a href="/accounts" class="text-link">Open accounts ↗</a></div>`}</section></div><section class="panel dashboard-pipeline"><div class="panel-head-row"><div><p class="eyebrow">PIPELINE SNAPSHOT</p><h2>Recent opportunities</h2></div><a href="/pipeline" class="text-link">Open pipeline ↗</a></div><div class="table-wrap"><table><thead><tr><th>Account</th><th>Contact</th><th>Stage</th><th>Value</th><th>Next step</th></tr></thead><tbody>${data.accounts.slice(0,5).map(a=>{const d=data.deals.find(x=>x.accountId===a.id),c=data.contacts.find(x=>x.accountId===a.id);return `<tr><td><a class="account-link" href="/accounts/${encodeURIComponent(a.id)}"><b>${esc(a.companyName)}</b></a></td><td>${esc(c?.name)}</td><td><span class="stage ${d?.stage??""}">${esc(d?.stage)}</span></td><td>${money(d?.value)}</td><td>${esc(d?.nextStep??"—")}</td></tr>`}).join("")}</tbody></table></div></section>`);
- document.querySelector<HTMLButtonElement>("#approve-all")?.addEventListener("click",async()=>{actionBusy=true;actionStatus="Preparing approval…";dashboard(app,focusActions);for(const a of pendingAccounts()){try{await approveDemoSequence(a)}catch(error){actionStatus=`Could not approve ${a.companyName}: ${error instanceof Error?error.message:"sequence service unavailable"}`}}actionBusy=false;if(!actionStatus.startsWith("Could not"))actionStatus="All pending plans approved for workflow tracking. No messages were sent.";dashboard(app,focusActions)});
- document.querySelectorAll<HTMLButtonElement>("[data-approve-account]").forEach(b=>b.addEventListener("click",async()=>{const a=data.accounts.find(x=>x.id===b.dataset.approveAccount);if(!a)return;actionBusy=true;actionStatus=`Preparing ${a.companyName}…`;dashboard(app,focusActions);try{await approveDemoSequence(a);actionStatus=`${a.companyName} approved for workflow tracking. No message was sent.`}catch(error){actionStatus=`Could not approve ${a.companyName}: ${error instanceof Error?error.message:"sequence service unavailable"}`}actionBusy=false;dashboard(app,focusActions)}));
- document.querySelectorAll<HTMLButtonElement>("[data-complete-task]").forEach(b=>b.addEventListener("click",()=>{const task=data.handoffs.find(h=>h.id===b.dataset.completeTask);if(task){task.status="done";task.auditHistory.push({id:id("audit"),action:"updated",actor:"user",at:stamp(),summary:"Handoff marked done"});saveData(data);dashboard(app,focusActions)}}));
+ frame(app,"dashboard",`${heading("YOUR SALES WORKSPACE","Dashboard","Keep the pipeline, people, and next steps moving from one place.",`<a href="/accounts" class="button primary">＋ Import leads</a>`)}<section class="stat-grid dashboard-stats"><article><small>OPEN PIPELINE</small><b>${money(pipelineValue)}</b><span>${data.deals.length} linked opportunities</span></article><article><small>ACCOUNTS</small><b>${String(data.accounts.length).padStart(2,"0")}</b><span>Persistent CRM records</span></article><article><small>AWAITING APPROVAL</small><b>${String(pending.length).padStart(2,"0")}</b><span>Human decision required</span></article><article class="stat-warm"><small>OPEN HANDOFFS</small><b>${String(openTasks.length).padStart(2,"0")}</b><span>Suggested human follow-ups</span></article></section><div class="dashboard-columns"><section class="panel action-center-panel" id="action-center"><div class="panel-head-row"><div><p class="eyebrow">APPROVALS</p><h2>Decisions waiting on you</h2><p class="muted">Approval records your choice for workflow tracking. No email is sent.</p></div>${pending.length?`<button id="approve-all" class="button primary" ${actionBusy?"disabled":""}>${actionBusy?"Approving…":`Approve all (${pending.length})`}</button>`:""}</div>${actionStatus?`<div class="alert ${actionStatus.startsWith("Could not")?"error":"success"}" role="status">${esc(actionStatus)}</div>`:""}${pending.length?`<div class="approval-list">${pending.map(a=>{const c=data.contacts.find(x=>x.accountId===a.id);return `<article class="approval-row"><span class="approval-avatar">${esc(a.companyName.split(/\s+/).map(x=>x[0]).slice(0,2).join(""))}</span><div><b>${esc(a.companyName)}</b><p>${esc(c?.name)} · plan can be generated and approved</p></div><a href="/automations?account=${encodeURIComponent(a.id)}">Review</a><button class="button mini-button" data-approve-account="${a.id}" ${actionBusy?"disabled":""}>${actionBusy?"Working…":"Approve plan"}</button></article>`}).join("")}</div>`:`<div class="empty-state compact-empty"><h3>All caught up</h3><p>There are no unapproved sequence plans. Import a lead to start another workflow.</p></div>`}</section><section class="panel handoff-preview"><div class="panel-head-row"><div><p class="eyebrow">HUMAN HANDOFFS</p><h2>Next steps for your team</h2><p class="muted">Created after a person confirms a CRM update.</p></div><a href="/tasks" class="text-link">View tasks ↗</a></div>${openTasks.length?openTasks.slice(0,4).map(h=>`<article class="handoff-row"><div><a href="/accounts/${encodeURIComponent(h.accountId)}"><b>${esc(data.accounts.find(a=>a.id===h.accountId)?.companyName??"Account")}</b></a><p>${esc(h.title)} · ${esc(h.reason)}</p></div><button class="button secondary" data-complete-task="${h.id}">Mark done</button></article>`).join(""):`<div class="empty-state compact-empty"><h3>No open handoffs</h3><p>Confirmed positive replies and call notes will appear here.</p><a href="/accounts" class="text-link">Open accounts ↗</a></div>`}</section></div><section class="panel dashboard-pipeline"><div class="panel-head-row"><div><p class="eyebrow">PIPELINE SNAPSHOT</p><h2>Recent opportunities</h2></div><a href="/pipeline" class="text-link">Open pipeline ↗</a></div><div class="table-wrap"><table><thead><tr><th>Account</th><th>Contact</th><th>Stage</th><th>Value</th><th>Next step</th></tr></thead><tbody>${data.accounts.slice(0,5).map(a=>{const d=data.deals.find(x=>x.accountId===a.id),c=data.contacts.find(x=>x.accountId===a.id);return `<tr><td><a class="account-link" href="/accounts/${encodeURIComponent(a.id)}"><b>${esc(a.companyName)}</b></a></td><td>${esc(c?.name)}</td><td><span class="stage ${d?.stage??""}">${esc(d?.stage)}</span></td><td>${money(d?.value)}</td><td>${esc(d?.nextStep??"—")}</td></tr>`}).join("")}</tbody></table></div></section>`);
+ document.querySelector<HTMLButtonElement>("#approve-all")?.addEventListener("click",async()=>{actionBusy=true;actionStatus="Preparing approval…";dashboard(app);for(const a of pendingAccounts()){try{await generateAndApproveSequence(a)}catch(error){actionStatus=`Could not approve ${a.companyName}: ${error instanceof Error?error.message:"sequence service unavailable"}`}}actionBusy=false;if(!actionStatus.startsWith("Could not"))actionStatus="All pending plans approved for workflow tracking. No messages were sent.";dashboard(app)});
+ document.querySelectorAll<HTMLButtonElement>("[data-approve-account]").forEach(b=>b.addEventListener("click",async()=>{const a=data.accounts.find(x=>x.id===b.dataset.approveAccount);if(!a)return;actionBusy=true;actionStatus=`Preparing ${a.companyName}…`;dashboard(app);try{await generateAndApproveSequence(a);actionStatus=`${a.companyName} approved for workflow tracking. No message was sent.`}catch(error){actionStatus=`Could not approve ${a.companyName}: ${error instanceof Error?error.message:"sequence service unavailable"}`}actionBusy=false;dashboard(app)}));
+ document.querySelectorAll<HTMLButtonElement>("[data-complete-task]").forEach(b=>b.addEventListener("click",()=>{const task=data.handoffs.find(h=>h.id===b.dataset.completeTask);if(task){task.status="done";task.auditHistory.push({id:id("audit"),action:"updated",actor:"user",at:stamp(),summary:"Handoff marked done"});saveData(data);dashboard(app)}}));
 }
 
-async function approveDemoSequence(account: Account): Promise<void> {
+async function generateAndApproveSequence(account: Account): Promise<void> {
  const contact=data.contacts.find(c=>c.accountId===account.id);if(!contact)throw new Error("The linked contact record is missing.");
- const response=await fetch("/api/sequence",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({account,contact,notes:account.summary??""})});
+ const auth=await workspaceAuthorization();const response=await fetch("/api/sequence",{method:"POST",headers:{"content-type":"application/json",...auth},body:JSON.stringify({account,contact,notes:account.summary??""})});
  const payload=await response.json() as GeneratedSequenceResult|{error?:string};if(!response.ok||"error" in payload)throw new Error((payload as {error?:string}).error??"The sequence service returned an error.");
- const result=payload as GeneratedSequenceResult,at=stamp(),sequenceId=id("sequence"),audit={id:id("audit"),action:"approved" as const,actor:"user" as const,at,summary:"Approved in Action Center for workflow tracking; no message sent"};
- data.sequences=data.sequences.filter(s=>s.accountId!==account.id);data.sequences.push({id:sequenceId,accountId:account.id,status:"approved",rationale:result.brief,createdAt:at,approvedAt:at,auditHistory:[audit],steps:result.steps.map((s,i)=>({id:`${sequenceId}_${i}`,sequenceId,channel:"email",delayDays:s.delayDays,subject:s.subject,body:s.body,status:"approved",source:{type:result.mode==="gemini"?"ai":"user",label:result.mode==="gemini"?"Gemini generated · Zod validated":"Demo fixture · Zod validated"}}))});data.activities.push({id:id("activity"),accountId:account.id,type:"sequence_approval",summary:audit.summary,source:{type:"user",label:"Human approval in Action Center"},createdAt:at,auditHistory:[audit]});saveData(data);
+ const result=payload as GeneratedSequenceResult,at=stamp(),sequenceId=id("sequence"),audit={id:id("audit"),action:"approved" as const,actor:"user" as const,at,summary:"Approved from Dashboard for workflow tracking; no message sent"};
+ data.sequences=data.sequences.filter(s=>s.accountId!==account.id);account.facts=[...(account.facts??[]),...result.facts];account.summary=result.brief;data.sequences.push({id:sequenceId,accountId:account.id,status:"approved",rationale:result.brief,createdAt:at,approvedAt:at,auditHistory:[audit],steps:result.steps.map((s,i)=>({id:`${sequenceId}_${i}`,sequenceId,channel:s.channel,delayDays:s.delayDays,subject:s.subject,body:s.body,status:"approved",source:{type:result.mode==="gemini"?"ai":"user",label:"Gemini generated · Zod validated"}}))});data.activities.push({id:id("activity"),accountId:account.id,type:"sequence_approval",summary:audit.summary,source:{type:"user",label:"Human approval"},createdAt:at,auditHistory:[audit]});saveData(data);
 }
 
 function pipeline(app: HTMLDivElement): void {
  const contactNotes=data.activities.filter(a=>a.type==="interaction"&&a.source?.label?.toLowerCase().includes("call note"));
  const replies=data.activities.filter(a=>a.type==="interaction"&&a.source?.label?.toLowerCase().includes("reply"));
  const contactedIds=new Set(contactNotes.map(a=>a.accountId)),repliedIds=new Set(replies.map(a=>a.accountId));
- const columns=[{key:"contacted",title:"Contacted",desc:"Call notes logged",accounts:data.accounts.filter(a=>contactedIds.has(a.id))},{key:"replied",title:"Replied",desc:"Simulated prospect replies",accounts:data.accounts.filter(a=>repliedIds.has(a.id))},{key:"lost",title:"Leads lost",desc:"Deal marked lost",accounts:data.accounts.filter(a=>data.deals.some(d=>d.accountId===a.id&&d.stage==="lost"))}];
- frame(app,"pipeline",`${heading("RELATIONSHIP PIPELINE","Pipeline","Track contact, reply, and lost-deal signals from recorded CRM activity.",`<a href="/accounts" class="button primary">＋ Add leads</a>`)}<section class="pipeline-hero">${columns.map(c=>`<article class="pipeline-hero-card ${c.key}"><span>${c.title.toUpperCase()}</span><b>${String(c.accounts.length).padStart(2,"0")}</b><small>${c.desc}</small></article>`).join("")}</section><div class="pipeline-board">${columns.map(c=>`<section class="pipeline-column"><div class="pipeline-column-head"><div><h2>${c.title}</h2><small>${c.desc}</small></div><span>${c.accounts.length}</span></div>${c.accounts.length?c.accounts.map(a=>{const d=data.deals.find(x=>x.accountId===a.id),ct=data.contacts.find(x=>x.accountId===a.id),activity=data.activities.filter(x=>x.accountId===a.id&&x.type==="interaction").at(-1);return `<a class="pipeline-account-card" href="/accounts/${encodeURIComponent(a.id)}"><div><b>${esc(a.companyName)}</b><span>${esc(ct?.name)}</span></div><p>${esc(activity?.summary??d?.nextStep??"No recent activity")}</p><small>${d?money(d.value):"—"} · ${d?.stage??"No deal"}</small></a>`}).join(""):`<div class="board-empty">No records in this view yet.</div>`}</section>`).join("")}</div><p class="muted pipeline-disclaimer">Columns reflect recorded call notes, simulated reply entries, and deal stages. Sequence approval does not mean an email was sent.</p>`);
+ const columns=[{key:"contacted",title:"Contacted",desc:"User recorded activity",accounts:data.accounts.filter(a=>contactedIds.has(a.id))},{key:"replied",title:"Replied",desc:"Prospect replies recorded in CRM",accounts:data.accounts.filter(a=>repliedIds.has(a.id))},{key:"lost",title:"Leads lost",desc:"Deal marked lost",accounts:data.accounts.filter(a=>data.deals.some(d=>d.accountId===a.id&&d.stage==="lost"))}];
+ frame(app,"pipeline",`${heading("RELATIONSHIP PIPELINE","Pipeline","Track contact, reply, and lost-deal signals from recorded CRM activity.",`<a href="/accounts" class="button primary">＋ Add leads</a>`)}<section class="pipeline-hero">${columns.map(c=>`<article class="pipeline-hero-card ${c.key}"><span>${c.title.toUpperCase()}</span><b>${String(c.accounts.length).padStart(2,"0")}</b><small>${c.desc}</small></article>`).join("")}</section><div class="pipeline-board">${columns.map(c=>`<section class="pipeline-column"><div class="pipeline-column-head"><div><h2>${c.title}</h2><small>${c.desc}</small></div><span>${c.accounts.length}</span></div>${c.accounts.length?c.accounts.map(a=>{const d=data.deals.find(x=>x.accountId===a.id),ct=data.contacts.find(x=>x.accountId===a.id),activity=data.activities.filter(x=>x.accountId===a.id&&x.type==="interaction").at(-1);return `<a class="pipeline-account-card" href="/accounts/${encodeURIComponent(a.id)}"><div><b>${esc(a.companyName)}</b><span>${esc(ct?.name)}</span></div><p>${esc(activity?.summary??d?.nextStep??"No recent activity")}</p><small>${d?money(d.value):"—"} · ${d?.stage??"No deal"}</small></a>`}).join(""):`<div class="board-empty">No records in this view yet.</div>`}</section>`).join("")}</div><p class="muted pipeline-disclaimer">Columns reflect user-recorded call notes, prospect replies, and deal stages. Sequence approval does not mean an email was sent.</p>`);
 }
 
-function people(app: HTMLDivElement): void {frame(app,"people",`${heading("RECORDS","People","Contacts connected to their account and current opportunity.",`<a href="/accounts" class="button primary">＋ Import contacts</a>`)}<section class="panel"><div class="section-heading"><div><h2>Contact directory</h2><p class="muted">${data.contacts.length} contacts from seeded records and CSV imports.</p></div></div>${data.contacts.length?`<div class="table-wrap"><table><thead><tr><th>Person</th><th>Company</th><th>Email</th><th>Title</th><th>Deal</th></tr></thead><tbody>${data.contacts.map(c=>{const a=data.accounts.find(x=>x.id===c.accountId),d=data.deals.find(x=>x.accountId===c.accountId);return `<tr><td><b>${esc(c.name)}</b></td><td><a class="account-link" href="/accounts/${encodeURIComponent(c.accountId)}">${esc(a?.companyName)}</a></td><td>${esc(c.email)}</td><td>${esc(c.title)}</td><td>${esc(d?.name)}</td></tr>`}).join("")}</tbody></table></div>`:`<div class="empty-state">No contacts yet.</div>`}</section>`)}
+function people(app: HTMLDivElement): void {frame(app,"people",`${heading("RECORDS","People","Contacts connected to their account and current opportunity.",`<a href="/accounts" class="button primary">＋ Import contacts</a>`)}<section class="panel"><div class="section-heading"><div><h2>Contact directory</h2><p class="muted">${data.contacts.length} contacts imported into this workspace.</p></div></div>${data.contacts.length?`<div class="table-wrap"><table><thead><tr><th>Person</th><th>Company</th><th>Email</th><th>Title</th><th>Deal</th></tr></thead><tbody>${data.contacts.map(c=>{const a=data.accounts.find(x=>x.id===c.accountId),d=data.deals.find(x=>x.accountId===c.accountId);return `<tr><td><b>${esc(c.name)}</b></td><td><a class="account-link" href="/accounts/${encodeURIComponent(c.accountId)}">${esc(a?.companyName)}</a></td><td>${esc(c.email)}</td><td>${esc(c.title)}</td><td>${esc(d?.name)}</td></tr>`}).join("")}</tbody></table></div>`:`<div class="empty-state">No contacts yet.</div>`}</section>`)}
 
-function tasks(app: HTMLDivElement): void {frame(app,"tasks",`${heading("TEAM FOLLOW-UP","Tasks","Human handoffs created from confirmed account updates.",`<a href="/dashboard" class="button secondary">Back to dashboard</a>`)}<section class="panel"><div class="panel-head-row"><div><h2>Team task list</h2><p class="muted">Tasks are stored with the local CRM demo records.</p></div><span class="count">${data.handoffs.filter(h=>h.status==="open").length} open</span></div>${data.handoffs.length?data.handoffs.map(h=>`<article class="handoff-row"><div><a href="/accounts/${encodeURIComponent(h.accountId)}"><b>${esc(data.accounts.find(a=>a.id===h.accountId)?.companyName??"Account")}</b></a><p>${esc(h.title)} · ${esc(h.reason)}</p><small>${h.status==="open"?"Open":"Done"} · Human follow-up</small></div><button class="button secondary" data-task="${h.id}" ${h.status==="done"?"disabled":""}>${h.status==="done"?"Done ✓":"Mark done"}</button></article>`).join(""):`<div class="empty-state"><h3>No tasks yet</h3><p>Confirm a positive simulated interaction from an account to create a handoff task.</p><a href="/accounts" class="button primary">Open accounts</a></div>`}</section>`);document.querySelectorAll<HTMLButtonElement>("[data-task]").forEach(b=>b.addEventListener("click",()=>{const task=data.handoffs.find(h=>h.id===b.dataset.task);if(task){task.status="done";task.auditHistory.push({id:id("audit"),action:"updated",actor:"user",at:stamp(),summary:"Task marked done"});saveData(data);tasks(app)}}));}
+function tasks(app: HTMLDivElement): void {frame(app,"tasks",`${heading("TEAM FOLLOW-UP","Tasks","Human handoffs created from confirmed account updates.",`<a href="/dashboard" class="button secondary">Back to dashboard</a>`)}<section class="panel"><div class="panel-head-row"><div><h2>Team task list</h2><p class="muted">Tasks are stored in this authenticated Supabase workspace.</p></div><span class="count">${data.handoffs.filter(h=>h.status==="open").length} open</span></div>${data.handoffs.length?data.handoffs.map(h=>`<article class="handoff-row"><div><a href="/accounts/${encodeURIComponent(h.accountId)}"><b>${esc(data.accounts.find(a=>a.id===h.accountId)?.companyName??"Account")}</b></a><p>${esc(h.title)} · ${esc(h.reason)}</p><small>${h.status==="open"?"Open":"Done"} · Human follow-up</small></div><button class="button secondary" data-task="${h.id}" ${h.status==="done"?"disabled":""}>${h.status==="done"?"Done ✓":"Mark done"}</button></article>`).join(""):`<div class="empty-state"><h3>No tasks yet</h3><p>Confirm an AI proposal from an account to create a handoff task.</p><a href="/accounts" class="button primary">Open accounts</a></div>`}</section>`);document.querySelectorAll<HTMLButtonElement>("[data-task]").forEach(b=>b.addEventListener("click",()=>{const task=data.handoffs.find(h=>h.id===b.dataset.task);if(task){task.status="done";task.auditHistory.push({id:id("audit"),action:"updated",actor:"user",at:stamp(),summary:"Task marked done"});saveData(data);tasks(app)}}));}
 
 function notes(app: HTMLDivElement): void {frame(app,"notes",`${heading("TEAM CONTEXT","Notes","Capture durable account context in the activity timeline.") }<section class="panel"><h2>Add an account note</h2><form id="note-form"><label for="note-account">Account</label><select id="note-account" required>${data.accounts.map(a=>`<option value="${a.id}">${esc(a.companyName)}</option>`).join("")}</select><label for="note-text">Note</label><textarea id="note-text" minlength="3" required placeholder="Add a useful account note…"></textarea><button class="button primary" type="submit">Save note</button></form></section><section class="panel"><h2>Recent notes</h2>${data.activities.filter(a=>a.type==="note").length?data.activities.filter(a=>a.type==="note").slice().reverse().map(a=>`<article class="timeline-entry"><b><a href="/accounts/${encodeURIComponent(a.accountId)}">${esc(data.accounts.find(x=>x.id===a.accountId)?.companyName??"Account")}</a></b><p>${esc(a.summary)}</p><small>${esc(a.source?.label??"User note")} · ${new Date(a.createdAt).toLocaleString()}</small></article>`).join(""):`<div class="empty-state">No notes yet. Save an account note to start the list.</div>`}</section>`);document.querySelector<HTMLFormElement>("#note-form")?.addEventListener("submit",e=>{e.preventDefault();const accountId=document.querySelector<HTMLSelectElement>("#note-account")?.value,text=document.querySelector<HTMLTextAreaElement>("#note-text")?.value.trim();if(!accountId||!text)return;const at=stamp(),entry={id:id("audit"),action:"created" as const,actor:"user" as const,at,summary:"Account note added"};data.activities.push({id:id("activity"),accountId,type:"note",summary:text,source:{type:"user",label:"User note"},createdAt:at,auditHistory:[entry]});saveData(data);notes(app)});}
 
 function reports(app: HTMLDivElement): void {const deals=data.deals,stages=["prospecting","engaged","won","lost"].map(stage=>({stage,items:deals.filter(d=>d.stage===stage)})),max=Math.max(1,...stages.map(x=>x.items.reduce((n,d)=>n+(d.value??0),0)));frame(app,"reports",`${heading("INSIGHTS","Reports","A live summary of the records in this Relay workspace.") }<section class="stat-grid"><article><small>PIPELINE VALUE</small><b>${money(deals.reduce((n,d)=>n+(d.value??0),0))}</b><span>${deals.length} opportunities</span></article><article><small>WON VALUE</small><b>${money(deals.filter(d=>d.stage==="won").reduce((n,d)=>n+(d.value??0),0))}</b><span>Recorded as won</span></article><article><small>WIN RATE</small><b>${deals.filter(d=>["won","lost"].includes(d.stage)).length?Math.round(deals.filter(d=>d.stage==="won").length/deals.filter(d=>["won","lost"].includes(d.stage)).length*100):0}%</b><span>Won ÷ closed deals</span></article><article><small>ACTIVITY</small><b>${data.activities.length}</b><span>Recorded timeline events</span></article></section><section class="panel report-panel"><h2>Deal value by stage</h2><p class="muted">Computed from local CRM records.</p><div class="report-bars">${stages.map(x=>`<div class="report-bar-row"><span>${x.stage}</span><div><i style="width:${Math.round(x.items.reduce((n,d)=>n+(d.value??0),0)/max*100)}%"></i></div><b>${money(x.items.reduce((n,d)=>n+(d.value??0),0))}</b></div>`).join("")}</div></section>`)}
 
-function documentation(app: HTMLDivElement): void { location.href = "/docs"; }
+function documentation(app: HTMLDivElement): void {frame(app,"documentation",`${heading("HELP & GUIDES","Documentation","How account data, AI research, approvals, and integrations behave in Relay.") }<section class="docs-grid"><article class="panel"><span class="docs-icon">01</span><h2>Import leads</h2><p>Load or select a CSV, review the preview, then confirm. Relay creates linked account, contact, and deal records in this browser.</p><a href="/accounts" class="text-link">Open CSV import ↗</a></article><article class="panel"><span class="docs-icon">02</span><h2>Approve workflows</h2><p>Dashboard approval records a human decision and timeline activity. It never sends outreach.</p><a href="/dashboard" class="text-link">Open dashboard ↗</a></article><article class="panel"><span class="docs-icon">03</span><h2>Log a reply or note</h2><p>Add an actual reply or call note, review the AI proposal, then confirm before the deal and task are updated.</p><a href="/pipeline" class="text-link">Open Pipeline ↗</a></article><article class="panel"><span class="docs-icon">04</span><h2>Workspace storage</h2><p>Relay stores CRM records in your authenticated Supabase workspace.</p><a href="/settings" class="text-link">Open Settings ↗</a></article></section>`)}
+
+function integrations(app: HTMLDivElement): void {
+  const callbackState = new URLSearchParams(location.search).get("linkedin");
+  if (callbackState) {
+    linkedinNoticeIsError = callbackState !== "connected";
+    linkedinNotice = callbackState === "connected"
+      ? "LinkedIn is connected to this Relay workspace."
+      : `LinkedIn connection did not complete (${new URLSearchParams(location.search).get("reason") ?? "unknown error"}).`;
+    history.replaceState(null, "", toHref("/integrations"));
+  }
+  const statusLabel = linkedinStatus.connected ? "CONNECTED" : linkedinStatus.needsSignIn ? "SIGN IN REQUIRED" : linkedinStatus.configured ? "NOT CONNECTED" : linkedinStatus.message?.includes("routes were not found") ? "RESTART API SERVER" : "SETUP REQUIRED";
+  frame(app,"integrations",`${heading("CONNECTED SERVICES","Integrations","Connect approved data sources to Relay. Connections are workspace-scoped and credentials stay on the server.")}${linkedinNotice?`<div class="alert ${linkedinNoticeIsError?"error":"success"}" role="${linkedinNoticeIsError?"alert":"status"}">${esc(linkedinNotice)}</div>`:""}<div class="integration-grid"><section class="panel integration-card linkedin-card"><div class="integration-card-head"><div class="integration-brand linkedin-brand">in</div><div><p class="eyebrow">SOCIAL NETWORK</p><h2>LinkedIn</h2></div><span class="source-chip">${statusLabel}</span></div><p class="muted">Use LinkedIn Community Management’s Organization Lookup to research company pages available to your authorized member account.</p>${linkedinStatus.connected?`<div class="connected-member"><b>${esc(linkedinStatus.memberName??"LinkedIn member")}</b><small>Token expires ${linkedinStatus.expiresAt?new Date(linkedinStatus.expiresAt).toLocaleString():"per LinkedIn authorization"}</small><small>Granted: ${esc(linkedinStatus.scopes?.join(", ")??"LinkedIn permissions")}</small></div><form id="linkedin-lookup-form" class="integration-lookup"><label for="linkedin-vanity">Company page name</label><div class="integration-lookup-row"><input id="linkedin-vanity" name="vanityName" required maxlength="100" placeholder="e.g. linkedin"><button class="button primary" type="submit" ${linkedinBusy?"disabled":""}>${linkedinBusy?"Looking up…":"Look up company"}</button></div><small class="muted">Enter the company page vanity name from its LinkedIn URL, such as <code>linkedin</code>.</small></form>${linkedinLookupError?`<div class="alert error" role="alert">${esc(linkedinLookupError)}</div>`:""}${linkedinLookupResult?`<div class="linkedin-result"><div class="panel-head-row"><b>Organization lookup result</b><span class="source-chip">LINKEDIN SOURCE</span></div><pre>${esc(JSON.stringify(linkedinLookupResult,null,2))}</pre></div>`:""}<div class="actions"><button class="button secondary" id="linkedin-reconnect">Reconnect LinkedIn</button><button class="button secondary" id="linkedin-disconnect">Disconnect</button></div>`:`<div class="integration-capabilities"><span>✓ Organization lookup</span><span>✓ Human-authorized OAuth</span><span>— No person search or DM sending</span></div><p class="integration-config-note">${esc(linkedinStatus.message??"Connect an authorized LinkedIn member account to search company pages.")}</p>${linkedinStatus.needsSignIn?`<form id="linkedin-password-form" class="integration-login"><label for="linkedin-password-email">Work email</label><input id="linkedin-password-email" type="email" required autocomplete="email" placeholder="you@company.com"><label for="linkedin-password">Password</label><div class="integration-lookup-row"><input id="linkedin-password" type="password" minlength="6" required autocomplete="current-password" placeholder="Your password"><button class="button primary" type="submit">Sign in</button></div></form><a class="text-link" href="/settings">Create an account or sign in in Settings ↗</a>`:""}${linkedinStatus.missing?.length?`<div class="integration-missing"><b>Still needed</b>${linkedinStatus.missing.map(name=>`<code>${esc(name)}</code>`).join("")}</div>`:""}<button class="button primary" id="linkedin-connect" ${linkedinBusy||!linkedinStatus.configured||linkedinStatus.needsSignIn?"disabled":""}>${linkedinBusy?"Opening LinkedIn…":"Connect LinkedIn"}</button><button class="button secondary" id="linkedin-refresh" ${linkedinBusy?"disabled":""}>Refresh status</button>`}<p class="integration-disclaimer">Company results depend on LinkedIn API permissions and page access. Admin-only fields require an administrator role for that company. Relay does not send LinkedIn messages.</p></section><section class="panel integration-card gmail-card"><div class="integration-card-head"><div class="integration-brand gmail-brand">G</div><div><p class="eyebrow">EMAIL</p><h2>Gmail</h2></div><span class="source-chip">COMING SOON</span></div><p class="muted">Bring Gmail conversations into account timelines after the Google OAuth and consent flow is ready.</p><div class="integration-capabilities"><span>◷ OAuth setup in progress</span><span>◷ Read and timeline sync not available yet</span></div><button class="button secondary" disabled>Coming soon</button></section></div><section class="panel integration-guide"><p class="eyebrow">LINKEDIN SETUP</p><h2>Connect it securely</h2><ol><li>In LinkedIn Developer Portal, add the Community Management API product and verify <code>rw_organization_admin</code> appears in your app’s Auth tab.</li><li>Set the exact callback URL shown in the project README under <b>Authorized redirect URLs</b>.</li><li>Add OAuth credentials and server-only encryption secrets to the repo-root <code>.env.local</code>.</li><li>Apply the new Supabase migration, then restart both <code>npm run server</code> and <code>npm run dev</code>.</li></ol><p class="muted">Relay requests only <code>openid profile email rw_organization_admin</code> by default. Change <code>LINKEDIN_SCOPES</code> only to permissions your app was granted.</p></section>`);
+
+  async function authorizationHeader(): Promise<Record<string,string>> {
+    const client=getSupabaseBrowserClient();
+    if(!client)throw new Error("Configure Supabase and sign in to your Relay workspace first.");
+    const {data,error}=await client.auth.getSession();
+    if(error)throw new Error(error.message);
+    if(!data.session)throw new Error("Sign in to your Relay workspace before connecting LinkedIn.");
+    return {authorization:`Bearer ${data.session.access_token}`};
+  }
+  async function loadStatus() {
+    try {
+      const headers=await authorizationHeader();
+      const response=await fetch("/api/integrations/linkedin/status",{headers});
+      const body=await response.json().catch(()=>({}));
+      if(!response.ok) {
+        if(response.status===404)throw new Error("LinkedIn routes were not found on the running API server. Stop it and restart the current repo with `npm run server`.");
+        if(response.status===401)throw new Error("Relay received your session but could not find a workspace membership. Apply the Supabase migrations, then sign out and back in from Settings.");
+        throw new Error(body.error??`Could not check LinkedIn status (HTTP ${response.status}).`);
+      }
+      linkedinStatus=body;
+    } catch(error) {
+      const message=error instanceof Error?error.message:"Start the Relay API server to check integration status.";
+      linkedinStatus={configured:false,connected:false,needsSignIn:message.includes("Sign in to your Relay workspace"),message};
+    }
+    linkedinStatusLoaded=true;
+    integrations(app);
+  }
+  async function startOAuth() {
+    linkedinBusy=true;linkedinNotice="";linkedinStatusLoaded=true;integrations(app);
+    try {const headers=await authorizationHeader();const response=await fetch("/api/integrations/linkedin/start",{method:"POST",headers});const body=await response.json();if(!response.ok||!body.authorizationUrl)throw new Error(body.error??"LinkedIn OAuth could not start.");location.assign(body.authorizationUrl)}
+    catch(error){linkedinBusy=false;linkedinNoticeIsError=true;linkedinNotice=error instanceof Error?error.message:"Could not start the LinkedIn connection.";integrations(app)}
+  }
+  document.querySelector<HTMLButtonElement>("#linkedin-connect")?.addEventListener("click",startOAuth);
+  document.querySelector<HTMLButtonElement>("#linkedin-reconnect")?.addEventListener("click",startOAuth);
+  document.querySelector<HTMLButtonElement>("#linkedin-refresh")?.addEventListener("click",()=>{linkedinStatusLoaded=false;linkedinNotice="";void loadStatus()});
+  document.querySelector<HTMLFormElement>("#linkedin-password-form")?.addEventListener("submit",async(event)=>{
+    event.preventDefault();const email=document.querySelector<HTMLInputElement>("#linkedin-password-email")?.value.trim();const password=document.querySelector<HTMLInputElement>("#linkedin-password")?.value;if(!email||!password)return;
+    const button=document.querySelector<HTMLButtonElement>("#linkedin-password-form button[type=submit]");if(button){button.disabled=true;button.textContent="Signing in…"}
+    try{await signInWithPasswordCloud(email,password);linkedinNoticeIsError=false;linkedinNotice="Signed in. Checking your Relay workspace…";linkedinStatusLoaded=false;await loadStatus();}
+    catch(error){linkedinNoticeIsError=true;linkedinNotice=error instanceof Error?error.message:"Email and password sign-in failed.";linkedinBusy=false;integrations(app)}
+  });
+  if(!linkedinStatusLoaded)void loadStatus();
+}
 
 function settings(app: HTMLDivElement): void {
   const cloud = getCloudStatus();
+  const connectionFailed = !cloud.connected && cloud.configured && Boolean(cloud.message && /could not|no relay workspace|permission|failed|does not exist|not found|violates|security policy|42501/i.test(cloud.message));
+  if (connectionFailed && !settingsStatusIsError) { settingsStatusIsError=true; settingsStatus=cloud.message ?? "Could not connect to the Supabase workspace."; }
   const connectionPanel = cloud.connected
-    ? `<p class="muted">Signed in as <b>${esc(cloud.email)}</b><br>Workspace <code>${esc(cloud.workspaceId)}</code><br>${esc(cloud.message)}</p>${cloud.hasData?"":`<button class="button primary" id="cloud-initialize">Sync local CRM records to Supabase</button>`}<button class="button secondary" id="cloud-signout">Sign out of Supabase</button>`
+    ? `<p class="muted">Signed in as <b>${esc(cloud.email)}</b><br>Workspace <code>${esc(cloud.workspaceId)}</code><br>${esc(cloud.message)}</p><form id="cloud-set-password-form" class="auth-password-form"><h3>Set or change your password</h3><label for="cloud-new-password">New password</label><input id="cloud-new-password" type="password" minlength="6" autocomplete="new-password" required placeholder="At least 6 characters"><button class="button secondary" type="submit">Save password</button></form><button class="button secondary" id="cloud-signout">Sign out of Supabase</button>`
     : cloud.configured
-      ? `<p class="muted">${esc(cloud.message ?? "Sign in to connect your workspace.")}</p><form id="cloud-login-form"><label for="cloud-email">Work email</label><input id="cloud-email" type="email" required autocomplete="email" placeholder="you@company.com"><button class="button primary" type="submit">Email me a sign-in link</button></form>`
+      ? `<p class="muted">${esc(cloud.message ?? "Sign in to connect your workspace.")}</p><form id="cloud-password-form" class="auth-password-form"><h3>Email and password</h3><label for="cloud-email">Work email</label><input id="cloud-email" type="email" required autocomplete="email" placeholder="you@company.com"><label for="cloud-password">Password</label><input id="cloud-password" type="password" minlength="6" required autocomplete="current-password" placeholder="At least 6 characters"><div class="actions"><button class="button primary" id="cloud-password-signin" type="button">Sign in</button><button class="button secondary" id="cloud-password-signup" type="button">Create account</button></div></form><p class="muted">New accounts get a Relay workspace automatically. If email confirmation is enabled in Supabase, confirm your address before signing in.</p>`
       : `<p class="muted">${esc(cloud.message ?? "Add VITE_SUPABASE_URL and VITE_SUPABASE_PUBLISHABLE_KEY to the repo-root .env.local to enable cloud mode.")}</p>`;
-  frame(app,"settings",`${heading("PREFERENCES","Settings","Workspace, live connection, and demo-data controls.")}${settingsStatus?`<div class="alert ${settingsStatusIsError?"error":"success"}" role="${settingsStatusIsError?"alert":"status"}">${esc(settingsStatus)}</div>`:""}<section class="panel settings-row"><div><h2>CRM workspace</h2>${connectionPanel}</div><span class="source-chip">${cloud.connected?(cloud.hasData?"LIVE · SUPABASE":"CONNECTED · EMPTY"):cloud.configured?"SIGN IN REQUIRED":"LOCAL DEMO"}</span></section><section class="panel settings-row"><div><h2>Realtime updates</h2><p class="muted">${cloud.connected&&cloud.hasData?"Accounts, deals, activities, handoffs, and agent runs refresh from the authorized workspace channel.":cloud.connected?"Initialize the cloud workspace once; then Relay will sync changes and listen for Realtime updates.":"Sign in to enable workspace-scoped Supabase Realtime. Local demo data continues to work without a session."}</p></div><span class="source-chip">${cloud.connected&&cloud.hasData?"REALTIME ON":cloud.connected?"READY TO SYNC":"AUTH REQUIRED"}</span></section><section class="panel settings-row"><div><h2>AI sequence drafts</h2><p class="muted">Gemini runs through the server route. Without GEMINI_API_KEY, Relay uses a labeled deterministic fixture.</p></div><span class="source-chip">SERVER ONLY</span></section><section class="panel danger-zone"><div><h2>Reset demo data</h2><p class="muted">Restore the four synthetic seeded accounts. When connected, this also replaces the current Supabase workspace records.</p></div><button class="button secondary" id="settings-reset">Reset demo data</button></section>`);
-  document.querySelector<HTMLFormElement>("#cloud-login-form")?.addEventListener("submit", async (event) => {
-    event.preventDefault();
-    const button = document.querySelector<HTMLButtonElement>("#cloud-login-form button[type=submit]");
-    const email = document.querySelector<HTMLInputElement>("#cloud-email")?.value.trim();
-    if (!email || !button) return;
-    button.disabled = true; button.textContent = "Sending link…";
-    try { await sendCloudMagicLink(email); settingsStatusIsError=false; settingsStatus = `Sign-in link sent to ${email}. Open it in this browser to connect Relay.`; }
-    catch (error) {
-      settingsStatusIsError=true;
-      const message=error instanceof Error?error.message:"Could not send the sign-in link.";
-      settingsStatus=/invalid api key/i.test(message)
-        ? "Supabase rejected this API key. In your Supabase project, copy the Project URL and Publishable key from Settings → API Keys into the repo-root .env.local, then restart the dev server. Make sure both values are from the same project."
-        : message;
-    }
+  frame(app,"settings",`${heading("PREFERENCES","Settings","Workspace authentication and live data connection.")}${settingsStatus?`<div class="alert ${settingsStatusIsError?"error":"success"}" role="${settingsStatusIsError?"alert":"status"}">${esc(settingsStatus)}</div>`:""}<section class="panel settings-row"><div><h2>CRM workspace</h2>${connectionPanel}</div><span class="source-chip">${cloud.connected?(cloud.hasData?"LIVE · SUPABASE":"CONNECTED · EMPTY"):cloud.configured?"SIGN IN REQUIRED":"SUPABASE REQUIRED"}</span></section><section class="panel settings-row"><div><h2>Realtime updates</h2><p class="muted">${cloud.connected&&cloud.hasData?"Accounts, deals, activities, handoffs, and agent runs refresh from the authorized workspace channel.":cloud.connected?"New CRM changes sync to Supabase and Realtime updates refresh this workspace.":"Sign in to access workspace-scoped records and Realtime updates."}</p></div><span class="source-chip">${cloud.connected&&cloud.hasData?"REALTIME ON":cloud.connected?"READY TO SYNC":"AUTH REQUIRED"}</span></section><section class="panel settings-row"><div><h2>AI sequence drafts</h2><p class="muted">Research and campaign generation require a valid server-side GEMINI_API_KEY. Relay never fabricates model output.</p></div><span class="source-chip">SERVER ONLY</span></section>`);
+  const submitPasswordAuth = async (action:"signin"|"signup") => {
+    const email=document.querySelector<HTMLInputElement>("#cloud-email")?.value.trim();
+    const password=document.querySelector<HTMLInputElement>("#cloud-password")?.value;
+    if(!email||!password){settingsStatusIsError=true;settingsStatus="Enter your email and password first.";settings(app);return;}
+    const button=document.querySelector<HTMLButtonElement>(action==="signin"?"#cloud-password-signin":"#cloud-password-signup");
+    if(button){button.disabled=true;button.textContent=action==="signin"?"Signing in…":"Creating account…";}
+    try{
+      if(action==="signin"){await signInWithPasswordCloud(email,password);settingsStatusIsError=false;settingsStatus="Signed in. Relay is connecting your workspace…";}
+      else {const signedIn=await signUpWithPasswordCloud(email,password);settingsStatusIsError=false;settingsStatus=signedIn?"Account created. Relay is connecting your workspace…":"Account created. Check your email to confirm the address, then sign in with your password.";}
+    }catch(error){settingsStatusIsError=true;settingsStatus=error instanceof Error?error.message:"Email and password authentication failed.";}
     settings(app);
-  });
-  document.querySelector<HTMLButtonElement>("#cloud-initialize")?.addEventListener("click", async () => {
-    const button=document.querySelector<HTMLButtonElement>("#cloud-initialize"); if(button){button.disabled=true;button.textContent="Syncing records…";}
-    try { await initializeCloudFromLocal(); settingsStatusIsError=false; settingsStatus="Local CRM records copied to your Supabase workspace."; }
-    catch (error) { settingsStatusIsError=true; settingsStatus=error instanceof Error?error.message:"Could not sync local records."; }
+  };
+  document.querySelector<HTMLButtonElement>("#cloud-password-signin")?.addEventListener("click",()=>void submitPasswordAuth("signin"));
+  document.querySelector<HTMLButtonElement>("#cloud-password-signup")?.addEventListener("click",()=>void submitPasswordAuth("signup"));
+  document.querySelector<HTMLFormElement>("#cloud-set-password-form")?.addEventListener("submit",async(event)=>{
+    event.preventDefault();const password=document.querySelector<HTMLInputElement>("#cloud-new-password")?.value;if(!password)return;
+    const button=document.querySelector<HTMLButtonElement>("#cloud-set-password-form button[type=submit]");if(button){button.disabled=true;button.textContent="Saving…";}
+    try{await setCloudPassword(password);settingsStatusIsError=false;settingsStatus="Password saved. You can use email and password next time.";}
+    catch(error){settingsStatusIsError=true;settingsStatus=error instanceof Error?error.message:"Could not save password.";}
     settings(app);
   });
   document.querySelector<HTMLButtonElement>("#cloud-signout")?.addEventListener("click", async () => {
-    try { await signOutCloud(); settingsStatusIsError=false; settingsStatus = "Signed out. This browser is back in local demo mode."; }
+    try { await signOutCloud(); settingsStatusIsError=false; settingsStatus = "Signed out. Sign in to access workspace records."; }
     catch (error) { settingsStatusIsError=true; settingsStatus = error instanceof Error ? error.message : "Could not sign out."; }
     settings(app);
   });
-  document.querySelector<HTMLButtonElement>("#settings-reset")?.addEventListener("click", async () => {
-    data=resetData(); preview=null; sequence=undefined; proposal=undefined;
-    if (cloud.connected) { if(cloud.hasData) await flushCloudSync(); else await initializeCloudFromLocal(); settingsStatus="Synthetic demo records restored in this browser and Supabase workspace."; }
-    else settingsStatus="Demo data restored to the seeded workspace.";
-    settings(app);
-  });
+
 }
 
 function logout(app: HTMLDivElement): void {
   const cloud = getCloudStatus();
-  frame(app,"logout",`${heading("WORKSPACE SESSION","Log out","End the current Supabase Auth session.") }<section class="panel empty-state"><h2>${cloud.connected?"Signed in":"No account session"}</h2><p>${cloud.connected?`Relay is connected as ${esc(cloud.email)}.`:"This browser is using local demo records."}</p>${cloud.connected?`<button class="button primary" id="logout-now">Sign out</button>`:`<a href="/settings" class="button primary">Connect a workspace</a>`}<a href="/dashboard" class="text-link">Return to dashboard</a></section>`);
-  document.querySelector<HTMLButtonElement>("#logout-now")?.addEventListener("click",async()=>{await signOutCloud();location.href="/dashboard"});
+  frame(app,"logout",`${heading("WORKSPACE SESSION","Log out","End the current Supabase Auth session.") }<section class="panel empty-state"><h2>${cloud.connected?"Signed in":"No account session"}</h2><p>${cloud.connected?`Relay is connected as ${esc(cloud.email)}.`:"No workspace session is active."}</p>${cloud.connected?`<button class="button primary" id="logout-now">Sign out</button>`:`<a href="/settings" class="button primary">Connect a workspace</a>`}<a href="/dashboard" class="text-link">Return to dashboard</a></section>`);
+  document.querySelector<HTMLButtonElement>("#logout-now")?.addEventListener("click",async()=>{await signOutCloud();location.href=toHref("/dashboard")});
 }
 function accounts(app: HTMLDivElement): void {
  const contact=new Map(data.contacts.map(c=>[c.accountId,c])), deal=new Map(data.deals.map(d=>[d.accountId,d]));
  const pipeline=data.deals.reduce((sum,d)=>sum+(d.value??0),0);
- frame(app,"accounts",`${heading("CRM RECORDS","Accounts &amp; imports","Import leads and browse linked account, contact, and deal records.",`<button class="button secondary" id="reset-top">Reset demo data</button>`)}<section class="stat-grid"><article><small>OPEN PIPELINE</small><b>${money(pipeline)}</b><span>Across ${data.deals.length} opportunities</span></article><article><small>ACTIVE ACCOUNTS</small><b>${String(data.accounts.length).padStart(2,"0")}</b><span>Seeded + imported records</span></article><article><small>NEEDS REVIEW</small><b>${String(data.sequences.filter(s=>s.status==="pending").length).padStart(2,"0")}</b><span>Approval stays with you</span></article><article class="stat-warm"><small>OPEN HANDOFFS</small><b>${String(data.handoffs.filter(h=>h.status==="open").length).padStart(2,"0")}</b><span>Ready for a human</span></article></section><section class="import-card"><div class="section-heading"><div><p class="eyebrow">CSV IMPORT</p><h2>Bring in your lead list</h2><p class="muted">Required columns: ${supportedCsvHeaders.slice(0,3).map(h=>`<code>${h}</code>`).join(", ")}</p></div><div class="actions"><button class="button secondary" id="download-sample">Download sample CSV</button><button class="button secondary" id="load-sample">Load sample</button><label class="button primary file-button">Choose CSV<input id="csv-file" type="file" accept=".csv,text/csv"></label></div></div><div class="dropzone"><textarea id="csv-text" placeholder="Paste CSV here or load the sample…" aria-label="CSV input">${esc(importText)}</textarea><div class="dropzone-copy"><span class="upload-icon">↥</span><strong>Paste CSV or choose a file</strong><span class="muted">Review valid rows before saving CRM records.</span></div></div><div id="import-feedback"></div></section><section class="pipeline"><div class="section-heading"><div><p class="eyebrow">PIPELINE</p><h2>Accounts</h2><p class="muted">Open any account record to see context and activity.</p></div><span class="count">${data.accounts.length} accounts</span></div>${data.accounts.length?`<div class="table-wrap"><table><thead><tr><th>Account</th><th>Contact</th><th>Deal</th><th>Stage</th><th>Value</th><th>Next step</th><th></th></tr></thead><tbody>${data.accounts.map(a=>{const c=contact.get(a.id),d=deal.get(a.id);return `<tr><td><a class="account-link" href="/accounts/${encodeURIComponent(a.id)}"><strong>${esc(a.companyName)}</strong></a><span class="cell-sub">${esc(a.domain)}</span></td><td>${esc(c?.name)}<span class="cell-sub">${esc(c?.title)}</span></td><td>${esc(d?.name)}</td><td><span class="stage ${d?.stage??""}">${esc(d?.stage)}</span></td><td>${money(d?.value)}</td><td>${esc(d?.nextStep)||"—"}</td><td><a class="button mini-button" href="/automations?account=${encodeURIComponent(a.id)}">Review plan</a></td></tr>`}).join("")}</tbody></table></div>`:`<div class="empty-state"><h3>No accounts yet</h3><p>Load sample leads or import a CSV to create linked records.</p></div>`}</section>`);
- document.querySelector<HTMLButtonElement>("#reset-top")?.addEventListener("click",()=>{data=resetData();preview=null;importText="";sequence=undefined;proposal=undefined;renderWorkspace(app)});
- document.querySelector<HTMLButtonElement>("#download-sample")?.addEventListener("click",()=>{const u=URL.createObjectURL(new Blob([sampleCsv],{type:"text/csv"}));const a=document.createElement("a");a.href=u;a.download="relay-sample-leads.csv";a.click();URL.revokeObjectURL(u)});
- document.querySelector<HTMLButtonElement>("#load-sample")?.addEventListener("click",()=>{importText=sampleCsv;preview=parseCsv(sampleCsv);document.querySelector<HTMLTextAreaElement>("#csv-text")!.value=sampleCsv;showPreview()});
+ frame(app,"accounts",`${heading("CRM RECORDS","Accounts &amp; imports","Import leads and browse linked account, contact, and deal records.","")}<section class="stat-grid"><article><small>OPEN PIPELINE</small><b>${money(pipeline)}</b><span>Across ${data.deals.length} opportunities</span></article><article><small>ACTIVE ACCOUNTS</small><b>${String(data.accounts.length).padStart(2,"0")}</b><span>Imported records</span></article><article><small>NEEDS REVIEW</small><b>${String(data.sequences.filter(s=>s.status==="pending").length).padStart(2,"0")}</b><span>Approval stays with you</span></article><article class="stat-warm"><small>OPEN HANDOFFS</small><b>${String(data.handoffs.filter(h=>h.status==="open").length).padStart(2,"0")}</b><span>Ready for a human</span></article></section><section class="import-card"><div class="section-heading"><div><p class="eyebrow">CSV IMPORT</p><h2>Bring in your lead list</h2><p class="muted">Required columns: ${supportedCsvHeaders.slice(0,3).map(h=>`<code>${h}</code>`).join(", ")}</p><p class="muted">Sample leads are synthetic examples and are only added after you review and confirm the import.</p></div><div class="actions"><button class="button secondary" id="load-sample">Load sample leads</button><button class="button secondary" id="download-sample">Download sample CSV</button><button class="button secondary" id="download-template">Download blank template</button><label class="button primary file-button">Choose CSV<input id="csv-file" type="file" accept=".csv,text/csv"></label></div></div><div class="dropzone"><textarea id="csv-text" placeholder="Paste a CSV here or choose a file…" aria-label="CSV input">${esc(importText)}</textarea><div class="dropzone-copy"><span class="upload-icon">↥</span><strong>Paste CSV or choose a file</strong><span class="muted">Review valid rows before saving CRM records.</span></div></div><div id="import-feedback"></div></section><section class="pipeline"><div class="section-heading"><div><p class="eyebrow">PIPELINE</p><h2>Accounts</h2><p class="muted">Open any account record to see context and activity history.</p></div><span class="count">${data.accounts.length} accounts</span></div>${data.accounts.length?`<div class="table-wrap"><table><thead><tr><th>Account</th><th>Contact</th><th>Deal</th><th>Stage</th><th>Value</th><th>Next step</th><th></th></tr></thead><tbody>${data.accounts.map(a=>{const c=contact.get(a.id),d=deal.get(a.id);return `<tr><td><a class="account-link" href="/accounts/${encodeURIComponent(a.id)}"><strong>${esc(a.companyName)}</strong></a><span class="cell-sub">${esc(a.domain)}</span></td><td>${esc(c?.name)}<span class="cell-sub">${esc(c?.title)}</span></td><td>${esc(d?.name)}</td><td><span class="stage ${d?.stage??""}">${esc(d?.stage)}</span></td><td>${money(d?.value)}</td><td>${esc(d?.nextStep)||"—"}</td><td><a class="button mini-button" href="/automations?account=${encodeURIComponent(a.id)}">Review plan</a></td></tr>`}).join("")}</tbody></table></div>`:`<div class="empty-state"><h3>No accounts yet</h3><p>Import a CSV with real account and contact data to create records.</p></div>`}</section>`);
+ const downloadCsv=(contents:string,filename:string)=>{const u=URL.createObjectURL(new Blob([contents],{type:"text/csv"}));const a=document.createElement("a");a.href=u;a.download=filename;a.click();setTimeout(()=>URL.revokeObjectURL(u),1000)};
+ document.querySelector<HTMLButtonElement>("#download-sample")?.addEventListener("click",()=>downloadCsv(sampleCsv,"relay-sample-leads.csv"));
+ document.querySelector<HTMLButtonElement>("#download-template")?.addEventListener("click",()=>downloadCsv([...supportedCsvHeaders].join(","),"relay-leads-template.csv"));
+ document.querySelector<HTMLButtonElement>("#load-sample")?.addEventListener("click",()=>{importText=sampleCsv;preview=parseCsv(importText);const textarea=document.querySelector<HTMLTextAreaElement>("#csv-text");if(textarea)textarea.value=importText;showPreview()});
  document.querySelector<HTMLTextAreaElement>("#csv-text")?.addEventListener("input",e=>{importText=(e.target as HTMLTextAreaElement).value;preview=parseCsv(importText);showPreview()});
  document.querySelector<HTMLInputElement>("#csv-file")?.addEventListener("change",e=>{const f=(e.target as HTMLInputElement).files?.[0];if(!f)return;const r=new FileReader();r.onload=()=>{importText=String(r.result??"");preview=parseCsv(importText);document.querySelector<HTMLTextAreaElement>("#csv-text")!.value=importText;showPreview()};r.onerror=()=>{const box=document.querySelector("#import-feedback");if(box)box.innerHTML=`<div class="alert error" role="alert">Could not read this file. Choose a readable CSV.</div>`};r.readAsText(f)});
  function showPreview(){const target=document.querySelector<HTMLDivElement>("#import-feedback");if(!target||!preview)return;target.innerHTML=preview.errors.length?`<div class="alert error" role="alert">${preview.errors.map(e=>`Row ${e.row}: ${esc(e.message)}`).join(" · ")}</div>`:`<div class="alert success">${preview.rows.length} valid leads ready. Nothing is saved until you confirm.</div><div class="preview-heading"><h3>Import preview</h3><button id="confirm-import" class="button primary">Import ${preview.rows.length} leads</button></div><div class="preview-table"><table><thead><tr><th>Company</th><th>Contact</th><th>Deal</th><th>Value</th></tr></thead><tbody>${preview.rows.map(r=>`<tr><td>${esc(r.company_name)}</td><td>${esc(r.contact_name)}</td><td>${esc(r.deal_name)}</td><td>${money(r.deal_value)}</td></tr>`).join("")}</tbody></table></div>`;document.querySelector<HTMLButtonElement>("#confirm-import")?.addEventListener("click",()=>{if(!preview||preview.errors.length)return;data=importRows(data,preview.rows);preview=null;importText="";renderWorkspace(app)});}
@@ -381,20 +276,27 @@ function accounts(app: HTMLDivElement): void {
 
 function detail(app: HTMLDivElement, accountId: string): void {
  const a=data.accounts.find(x=>x.id===accountId),c=data.contacts.find(x=>x.accountId===accountId),d=data.deals.find(x=>x.accountId===accountId);
- if(!a||!c||!d){frame(app,"accounts",`<section class="panel"><h1>Account not found</h1><p>This record may have been removed by a demo reset.</p><a href="/workspace" class="button primary">Back to accounts</a></section>`);return;}
- const items=data.activities.filter(x=>x.accountId===a.id).slice().reverse();
- frame(app,"accounts",`<p class="back-line"><a href="/dashboard">← Dashboard</a> / ${esc(a.companyName)}</p>${heading("ACCOUNT RECORD · SOURCES LABELED",esc(a.companyName),esc(a.summary),`<a class="button primary" href="/automations?account=${encodeURIComponent(a.id)}">✦ Review sequence</a>`)}<div class="detail-grid"><div><section class="panel"><div class="section-heading"><div><h2>Key contact</h2><p class="muted">${esc(c.title)}</p></div><span class="source-chip">${esc(c.source?.label??"User supplied")}</span></div><b>${esc(c.name)}</b><p>${esc(c.email)}</p></section><section class="panel"><div class="section-heading"><div><h2>Log a conversation</h2><p class="muted">Simulate an inbound reply or add a call note. Nothing is sent.</p></div><span class="source-chip">SIMULATED INPUT</span></div><form id="interaction-form"><label for="interaction-kind">Interaction type</label><select id="interaction-kind"><option value="Simulated prospect reply">Prospect reply</option><option value="Simulated call note">Call note</option></select><label for="reply-text">Reply or call note</label><textarea id="reply-text" minlength="3" required placeholder="Example: Interested in a walkthrough next week; asked about onboarding."></textarea>${inputError?`<p role="alert" class="inline-error">${esc(inputError)}</p>`:""}<button class="button primary" type="submit">${proposal?.accountId===a.id?"Update proposal":"Prepare CRM update"}</button></form>${proposal?.accountId===a.id?`<div class="proposal"><span class="source-chip">DEMO SUGGESTION · REVIEW REQUIRED</span><h3>Proposed CRM update</h3><p>${esc(proposal.summary)}</p><p>Deal stage <b>Engaged</b> · Next step <b>${esc(proposal.nextStep)}</b></p><p class="muted">This simulated interaction suggests a next step; inspect and confirm to save.</p><button class="button primary" id="confirm-update">Confirm and update CRM</button></div>`:""}</section></div><aside><section class="panel"><p class="eyebrow">OPPORTUNITY</p><h2>${esc(d.name)}</h2><div class="deal-value">${money(d.value)}</div><p><span class="stage ${d.stage}">${esc(d.stage)}</span></p><p>Next step<br><b>${esc(d.nextStep)}</b></p></section><section class="panel"><h2>Activity timeline</h2><p class="muted">${items.length} recorded items</p>${items.length?items.map(i=>`<article class="timeline-entry"><b>${esc(i.type.replaceAll("_"," "))}</b><p>${esc(i.summary)}</p><small>${esc(i.source?.label??"CRM")} · ${new Date(i.createdAt).toLocaleString()}</small></article>`).join(""):`<div class="empty-state">No activity yet. Confirm an approval or add a conversation.</div>`}</section></aside></div>`);
- document.querySelector<HTMLFormElement>("#interaction-form")?.addEventListener("submit",e=>{e.preventDefault();const text=document.querySelector<HTMLTextAreaElement>("#reply-text")?.value.trim()??"";interactionSource=document.querySelector<HTMLSelectElement>("#interaction-kind")?.value??"Simulated prospect reply";if(text.length<3){inputError="Add a reply or call note to continue.";return detail(app,a.id)}proposal={accountId:a.id,summary:text,nextStep:"Schedule a product walkthrough"};inputError="";detail(app,a.id)});
- document.querySelector<HTMLButtonElement>("#confirm-update")?.addEventListener("click",()=>{if(!proposal)return;const at=stamp(),entry={id:id("audit"),action:"updated" as const,actor:"user" as const,at,summary:"Confirmed CRM update from simulated interaction"};d.stage="engaged";d.nextStep=proposal.nextStep;d.auditHistory.push(entry);a.updatedAt=at;a.auditHistory.push(entry);data.activities.push({id:id("activity"),accountId:a.id,contactId:c.id,type:"interaction",summary:proposal.summary,source:{type:"user",label:interactionSource},createdAt:at,auditHistory:[entry]});data.handoffs.unshift({id:id("handoff"),accountId:a.id,title:"Schedule product walkthrough",reason:"Prospect expressed interest in a walkthrough.",status:"open",auditHistory:[{...entry,summary:"Created after human confirmation"}]});saveData(data);proposal=undefined;detail(app,a.id)});
+ if(!a||!c||!d){frame(app,"accounts",`<section class="panel"><h1>Account not found</h1><p>This record is not available in the current workspace.</p><a href="/workspace" class="button primary">Back to accounts</a></section>`);return;}
+ const items=data.activities.filter(x=>x.accountId===a.id).slice().sort((left,right)=>Date.parse(right.createdAt)-Date.parse(left.createdAt));
+ const timelineItems=items.length?items:[{id:`created-${a.id}`,accountId:a.id,type:"note" as const,summary:"Lead added to Relay.",source:{type:"user" as const,label:"Account record created"},createdAt:a.createdAt,auditHistory:[]}];
+ const activeProposal=proposal?.accountId===a.id?proposal:undefined;
+ frame(app,"accounts",`<p class="back-line"><a href="/dashboard">← Dashboard</a> / ${esc(a.companyName)}</p>${heading("ACCOUNT RECORD · SOURCES LABELED",esc(a.companyName),esc(a.summary),`<a class="button primary" href="/automations?account=${encodeURIComponent(a.id)}">✦ Build workflow</a>`)}<div class="detail-grid"><div><section class="panel"><div class="section-heading"><div><h2>Key contact</h2><p class="muted">${esc(c.title)}</p></div><span class="source-chip">${esc(c.source?.label??"User supplied")}</span></div><b>${esc(c.name)}</b><p>${esc(c.email)}</p>${c.linkedinUrl?`<p><a class="text-link" href="${esc(c.linkedinUrl)}" target="_blank" rel="noopener noreferrer">LinkedIn profile ↗</a></p>`:""}</section>${a.facts?.length?`<section class="panel"><h2>Account research &amp; supplied facts</h2>${a.facts.map(f=>`<article class="timeline-entry"><b>${esc(f.key)}</b><p>${esc(f.value)}</p><small>${f.source.url?`<a href="${esc(f.source.url)}" target="_blank" rel="noopener noreferrer">${esc(f.source.label??"Source")} ↗</a>`:esc(f.source.label??f.source.type)}${f.source.observedAt?` · ${esc(f.source.observedAt)}`:""}</small></article>`).join("")}</section>`:""}<section class="panel"><div class="section-heading"><div><h2>Log a conversation</h2><p class="muted">Add a prospect reply you received or a call note. Nothing is sent from Relay.</p></div><span class="source-chip">USER PROVIDED</span></div><form id="interaction-form"><label for="interaction-kind">Interaction type</label><select id="interaction-kind"><option value="prospect_reply">Prospect reply</option><option value="call_note">Call note</option></select><label for="reply-text">Reply or call note</label><textarea id="reply-text" minlength="3" required placeholder="Example: Interested in a walkthrough next week; asked about onboarding."></textarea>${inputError?`<p role="alert" class="inline-error">${esc(inputError)}</p>`:""}<button class="button primary" type="submit" ${actionBusy?"disabled":""}>${actionBusy?"Analyzing with Gemini…":proposal?.accountId===a.id?"Update proposal":"Prepare CRM update"}</button></form>${activeProposal?`<div class="proposal"><span class="source-chip">GEMINI PROPOSAL · REVIEW REQUIRED</span><h3>Proposed CRM update</h3><p>${esc(activeProposal.summary)}</p><p>Deal stage <b>${esc(activeProposal.proposedStage??d.stage)}</b> · Next step <b>${esc(activeProposal.nextStep)}</b></p><p>${esc(activeProposal.taskReason)}</p><p class="muted">Confidence ${(activeProposal.confidence*100).toFixed(0)}% · review before applying</p><button class="button primary" id="confirm-update">Confirm and update CRM</button></div>`:""}</section></div><aside><section class="panel"><p class="eyebrow">OPPORTUNITY</p><h2>${esc(d.name)}</h2><div class="deal-value">${money(d.value)}</div><p><span class="stage ${d.stage}">${esc(d.stage)}</span></p><p>Next step<br><b>${esc(d.nextStep)}</b></p></section><section class="panel"><h2>Activity timeline</h2><p class="muted">${timelineItems.length} timeline entries</p>${timelineItems.length?timelineItems.map(i=>`<article class="timeline-entry"><b>${esc(i.type.replaceAll("_"," "))}</b><p>${esc(i.summary)}</p><small>${esc(i.source?.label??"CRM")} · ${new Date(i.createdAt).toLocaleString()}</small></article>`).join(""):`<div class="empty-state">No activity yet. Confirm a CRM proposal or add an account note.</div>`}</section></aside></div>`);
+ document.querySelector<HTMLFormElement>("#interaction-form")?.addEventListener("submit",async e=>{e.preventDefault();const text=document.querySelector<HTMLTextAreaElement>("#reply-text")?.value.trim()??"";const kind=(document.querySelector<HTMLSelectElement>("#interaction-kind")?.value??"prospect_reply") as "prospect_reply"|"call_note";if(text.length<3){inputError="Add the reply or call note to continue.";return detail(app,a.id)}inputError="";actionBusy=true;detail(app,a.id);activeStewardRunId=await startCloudAgentRun("crm_steward",a.id,{account:a,deal:d,interaction:{kind,text}});try{const auth=await workspaceAuthorization();const response=await fetch("/api/agents/steward",{method:"POST",headers:{"content-type":"application/json",...auth},body:JSON.stringify({account:a,deal:d,recentActivities:items.slice(0,10),interaction:{kind,text}})});const body=await response.json();if(!response.ok)throw new Error(body.error??"The CRM Steward could not analyze this note.");const output=body.output;await finishCloudAgentRun(activeStewardRunId,{status:"awaiting_approval",provider:"gemini",output});const stage=output.proposedChanges?.find((change:{field:string})=>change.field==="stage")?.proposedValue;proposal={accountId:a.id,summary:text,nextStep:output.suggestedTask.title,taskReason:output.suggestedTask.reason,interactionType:kind,provider:"gemini",confidence:output.confidence,recommendHandoff:output.recommendHandoff,proposedStage:typeof stage==="string"?stage:undefined};}catch(error){await finishCloudAgentRun(activeStewardRunId,{status:"failed",error:error instanceof Error?error.message:"Could not prepare the CRM proposal."});inputError=error instanceof Error?error.message:"Could not prepare the CRM proposal."}finally{actionBusy=false;detail(app,a.id)}});
+ document.querySelector<HTMLButtonElement>("#confirm-update")?.addEventListener("click",()=>{if(!proposal)return;const at=stamp(),entry={id:id("audit"),action:"updated" as const,actor:"user" as const,at,summary:"Confirmed AI proposal from user-provided interaction"};if(proposal.proposedStage&&["prospecting","engaged","won","lost"].includes(proposal.proposedStage))d.stage=proposal.proposedStage as typeof d.stage;d.nextStep=proposal.nextStep;d.auditHistory.push(entry);a.updatedAt=at;a.auditHistory.push(entry);data.activities.push({id:id("activity"),accountId:a.id,contactId:c.id,type:"interaction",summary:proposal.summary,source:{type:"user",label:proposal.interactionType==="prospect_reply"?"User provided prospect reply":"User provided call note"},createdAt:at,auditHistory:[entry]});if(proposal.recommendHandoff)data.handoffs.unshift({id:id("handoff"),accountId:a.id,title:proposal.nextStep,reason:proposal.taskReason,status:"open",auditHistory:[{...entry,summary:"Created after explicit confirmation"}]});saveData(data);void finishCloudAgentRun(activeStewardRunId,{status:"completed",provider:"gemini",output:{confirmed:true,accountId:a.id}});proposal=undefined;detail(app,a.id)});
 }
 
 function review(app: HTMLDivElement): void {
  const accountId=new URLSearchParams(location.search).get("account")??data.accounts[0]?.id;
  const a=data.accounts.find(x=>x.id===accountId);
  if(!a){frame(app,"automations",`<div class="empty-state"><h2>No accounts to review</h2><p>Import a lead list first.</p><a href="/workspace" class="button primary">Open accounts</a></div>`);return;}
- const c=data.contacts.find(x=>x.accountId===a.id)!;let saved=data.sequences.find(x=>x.accountId===a.id);let activeRunId:string|undefined;const result=sequence?.accountId===a.id?sequence.result:undefined;
- frame(app,"automations",`${heading("AUTOMATIONS","Outreach sequences","Inspect account-specific plans and approve them for workflow tracking. Nothing is sent.",`<a class="button secondary" href="/accounts/${encodeURIComponent(a.id)}">Account detail ↗</a>`)}<div class="review-layout"><aside class="panel review-list"><h2>Accounts</h2>${data.accounts.map(x=>`<a class="review-account ${x.id===a.id?"selected":""}" href="/automations?account=${encodeURIComponent(x.id)}"><b>${esc(x.companyName)}</b><small>${esc(data.contacts.find(c=>c.accountId===x.id)?.name)}</small></a>`).join("")}</aside><section class="panel"><p class="eyebrow">PERSONALIZED OUTREACH PLAN</p><h2>${esc(a.companyName)}</h2><p class="muted">To ${esc(c.name)} · ${esc(c.title)}</p>${sequence?.loading&&sequence.accountId===a.id?`<div class="loading-state"><span class="spinner"></span>Preparing and validating draft…</div>`:""}${sequence?.error&&sequence.accountId===a.id?`<div class="alert error" role="alert">${esc(sequence.error)}<button class="button secondary" id="retry-sequence">Retry</button></div>`:""}${result?`<div class="source-chip">${result.mode==="demo_fixture"?"DEMO FIXTURE":"GEMINI OUTPUT"} · ZOD VALIDATED</div>${result.fallbackReason?`<div class="alert error"><b>Provider fallback</b><span>${esc(result.fallbackReason)}</span></div>`:""}<p>${esc(result.brief)}</p><div class="fact-list"><b>Facts used</b>${result.facts.map(f=>`<span>${esc(f.key)}: ${esc(f.value)} <em>${esc(f.source.label??f.source.type)}</em></span>`).join("")}</div>${result.steps.map((s,i)=>`<article class="step"><span class="step-number">${i+1}</span><div><small>DAY ${s.delayDays}</small><h3>${esc(s.subject)}</h3><p>${esc(s.body)}</p><small>${esc(s.rationale)}</small></div></article>`).join("")}`:saved?`<div class="source-chip">${esc(saved.steps[0]?.source?.label??"Saved demo proposal")}</div>${saved.steps.map((s,i)=>`<article class="step"><span class="step-number">${i+1}</span><div><small>DAY ${s.delayDays}</small><h3>${esc(s.subject)}</h3><p>${esc(s.body)}</p></div></article>`).join("")}`:`<div class="empty-state"><h3>No proposal yet</h3><p>Generate a server-side draft, or use the deterministic fixture when credentials are absent.</p></div>`}<div class="actions"><button class="button secondary" id="generate-review" ${sequence?.loading?"disabled":""}>${sequence?.loading?"Generating…":"Generate draft"}</button>${(result||saved)?`<button class="button primary" id="approve-sequence" ${saved?.status==="approved"?"disabled":""}>${saved?.status==="approved"?"Approved ✓":"Approve plan"}</button>`:""}</div><p class="muted note">Approval records your decision. No email or external action is triggered.</p></section></div>`);
- const generate=async()=>{sequence={accountId:a.id,loading:true};review(app);activeRunId=await startCloudAgentRun("outreach_planner",a.id,{account:a,contact:c,notes:a.summary??""});try{const response=await fetch("/api/sequence",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({account:a,contact:c,notes:a.summary??""})});const body=await response.json();if(!response.ok||body.error)throw new Error(body.error??"Sequence service failed.");await finishCloudAgentRun(activeRunId,{status:"awaiting_approval",provider:body.mode,output:body as Record<string,unknown>});sequence={accountId:a.id,result:body as GeneratedSequenceResult}}catch(error){await finishCloudAgentRun(activeRunId,{status:"failed",error:"Sequence preparation failed; no CRM changes were applied."});sequence={accountId:a.id,error:error instanceof Error?`${error.message} Is the Relay API running?`:"Could not prepare the draft."}}review(app)};
+ const c=data.contacts.find(x=>x.accountId===a.id)!;let saved=data.sequences.find(x=>x.accountId===a.id);let activeRunId:string|undefined;const activeSequence=sequence?.accountId===a.id?sequence:undefined;const result=activeSequence?.result;const graph=workflowGraphs.get(a.id);
+ frame(app,"automations",`${heading("WORKFLOW BUILDER","Lead workflow","Build and rearrange account-specific steps. Approvals are human; external delivery stays disabled until connected.",`<a class="button secondary" href="/accounts/${encodeURIComponent(a.id)}">Account detail ↗</a>`)}<div class="review-layout"><aside class="panel review-list"><h2>Accounts</h2>${data.accounts.map(x=>`<a class="review-account ${x.id===a.id?"selected":""}" href="/automations?account=${encodeURIComponent(x.id)}"><b>${esc(x.companyName)}</b><small>${esc(data.contacts.find(c=>c.accountId===x.id)?.name)}</small></a>`).join("")}</aside><section class="panel"><p class="eyebrow">PERSONALIZED OUTREACH PLAN</p><h2>${esc(a.companyName)}</h2><p class="muted">To ${esc(c.name)} · ${esc(c.title)}</p>${activeSequence?.loading?`<div class="loading-state"><span class="spinner"></span>Researching sources, then preparing the personalized draft…</div>`:""}${activeSequence?.error?`<div class="alert error" role="alert">${esc(activeSequence.error)}<button class="button secondary" id="retry-sequence">Retry</button></div>`:""}${result?`<div class="source-chip">${"GEMINI OUTPUT"} · ZOD VALIDATED</div><p>${esc(result.brief)}</p><div class="alert info"><b>Suggested channel: ${esc(result.channelRecommendation.channel.replaceAll("_"," "))}</b><span>${esc(result.channelRecommendation.reason)} ${result.channelRecommendation.channel==="linkedin"?"LinkedIn actions remain manual; this app cannot send personal DMs.":""}${result.channelRecommendation.linkedinActivityEvidence.map(evidence=>`<small>${esc(evidence.claim)} · ${esc(evidence.observedAt)} · <a href="${esc(evidence.sourceUrl)}" target="_blank" rel="noopener noreferrer">Source ↗</a></small>`).join("")}</span></div><div class="workflow-canvas" id="workflow-canvas" aria-label="Editable account workflow">${(graph?.nodes??[]).map((node,index)=>`<article class="workflow-node ${node.status==='blocked'?'blocked':''}" draggable="true" data-workflow-node="${esc(node.id)}"><small>${String(index+1).padStart(2,"0")} · ${esc(node.kind.replaceAll("_"," ").toUpperCase())}</small><b>${esc(node.title)}</b><span>${esc(node.description)}</span><button type="button" class="workflow-remove" data-remove-workflow-node="${esc(node.id)}" aria-label="Remove ${esc(node.title)}">×</button></article>`).join("")}</div><div class="workflow-customize"><label for="workflow-node-type">Add step</label><select id="workflow-node-type"><option value="wait">Wait</option><option value="linkedin_manual">LinkedIn manual touch</option><option value="email_draft">Email draft</option><option value="crm_update">CRM update</option><option value="human_approval">Human review</option></select><button class="button secondary" id="add-workflow-node">＋ Add node</button><small>Drag nodes to reorder. The graph is saved in your Supabase workspace.</small></div><div class="fact-list"><b>Facts used</b>${result.facts.map(f=>`<span>${esc(f.key)}: ${esc(f.value)} <em>${f.source.url?`<a href="${esc(f.source.url)}" target="_blank" rel="noopener noreferrer">${esc(f.source.label??f.source.url)} ↗</a>`:esc(f.source.label??f.source.type)}</em></span>`).join("")}</div>${result.steps.map((s,i)=>`<article class="step"><span class="step-number">${i+1}</span><div><small>${channelLabel(s.channel).toUpperCase()} · DAY ${s.delayDays}</small><h3>${esc(s.subject)}</h3><p>${esc(s.body)}</p><small>${esc(s.rationale)}</small></div></article>`).join("")}`:saved?`<div class="source-chip">${esc(saved.steps[0]?.source?.label??"Saved proposal")}</div>${saved.steps.map((s,i)=>`<article class="step"><span class="step-number">${i+1}</span><div><small>${channelLabel(s.channel).toUpperCase()} · DAY ${s.delayDays}</small><h3>${esc(s.subject)}</h3><p>${esc(s.body)}</p></div></article>`).join("")}`:`<div class="empty-state"><h3>No proposal yet</h3><p>Run grounded research and generate a server-side draft. Gemini credentials are required.</p></div>`}<div class="actions"><button class="button secondary" id="generate-review" ${activeSequence?.loading?"disabled":""}>${activeSequence?.loading?"Generating…":"Research + generate workflow"}</button>${(result||saved)?`<button class="button primary" id="approve-sequence" ${saved?.status==="approved"?"disabled":""}>${saved?.status==="approved"?"Approved ✓":"Approve plan"}</button>`:""}</div><p class="muted note">Approval records your decision. No email or external action is triggered.</p></section></div>`);
+ const generate=async()=>{sequence={accountId:a.id,loading:true};review(app);activeRunId=await startCloudAgentRun("outreach_planner",a.id,{account:a,contact:c,notes:a.summary??""});try{const auth=await workspaceAuthorization();const response=await fetch("/api/sequence",{method:"POST",headers:{"content-type":"application/json",...auth},body:JSON.stringify({account:a,contact:c,notes:a.summary??""})});const body=await response.json();if(!response.ok||body.error)throw new Error(body.error??"Sequence service failed.");await finishCloudAgentRun(activeRunId,{status:"awaiting_approval",provider:"gemini",output:body as Record<string,unknown>});sequence={accountId:a.id,result:body as GeneratedSequenceResult};a.facts=[...(a.facts??[]).filter(f=>f.key!=="Research finding"),...(body as GeneratedSequenceResult).facts];a.summary=(body as GeneratedSequenceResult).brief;const at=stamp(),sequenceId=id("sequence"),draft:import("./shared/contracts").Sequence={id:sequenceId,accountId:a.id,status:"pending",rationale:(body as GeneratedSequenceResult).brief,createdAt:at,auditHistory:[],steps:(body as GeneratedSequenceResult).steps.map((step,index)=>({id:`${sequenceId}_${index}`,sequenceId,channel:step.channel,delayDays:step.delayDays,subject:step.subject,body:step.body,status:"pending",source:{type:"ai",label:(body as GeneratedSequenceResult).facts[index]?.source.label??"Gemini generated · Zod validated",url:(body as GeneratedSequenceResult).facts[index]?.source.url}}))};data.sequences=data.sequences.filter(item=>item.accountId!==a.id);data.sequences.push(draft);saveData(data);const workflow=defaultWorkflowGraph(a,body as GeneratedSequenceResult);workflowGraphs.set(a.id,workflow);await persistWorkflowGraph(a,workflow)}catch(error){await finishCloudAgentRun(activeRunId,{status:"failed",error:"Sequence preparation failed; no CRM changes were applied."});sequence={accountId:a.id,error:error instanceof Error?`${error.message} Is the Relay API running?`:"Could not prepare the draft."}}review(app)};
  document.querySelector<HTMLButtonElement>("#generate-review")?.addEventListener("click",generate);document.querySelector<HTMLButtonElement>("#retry-sequence")?.addEventListener("click",generate);
- document.querySelector<HTMLButtonElement>("#approve-sequence")?.addEventListener("click",()=>{const r=sequence?.accountId===a.id?sequence.result:undefined;if(!r)return;const at=stamp(),sid=id("sequence");data.sequences=data.sequences.filter(x=>x.accountId!==a.id);saved={id:sid,accountId:a.id,status:"approved",rationale:r.brief,createdAt:at,approvedAt:at,auditHistory:[{id:id("audit"),action:"approved",actor:"user",at,summary:"Approved for workflow tracking; no message sent"}],steps:r.steps.map((s,i)=>({id:`${sid}_${i}`,sequenceId:sid,channel:"email",delayDays:s.delayDays,subject:s.subject,body:s.body,status:"approved",source:{type:r.mode==="gemini"?"ai":"user",label:r.mode==="gemini"?"Gemini generated · Zod validated":"Demo fixture · Zod validated"}}))};data.sequences.push(saved);data.activities.push({id:id("activity"),accountId:a.id,type:"sequence_approval",summary:"Outreach plan approved for workflow tracking. No message was sent.",source:{type:"user",label:"Human approval"},createdAt:at,auditHistory:[]});saveData(data);void finishCloudAgentRun(activeRunId,{status:"completed",provider:r.mode,output:{approved:true,sequenceId:sid}});review(app)});
+ const rebuildGraphEdges=(workflow:WorkflowGraph)=>{workflow.edges=workflow.nodes.slice(1).map((node,index)=>({id:crypto.randomUUID(),from:workflow.nodes[index].id,to:node.id}))};
+ document.querySelector<HTMLButtonElement>("#add-workflow-node")?.addEventListener("click",async()=>{const workflow=workflowGraphs.get(a.id);if(!workflow)return;const kind=document.querySelector<HTMLSelectElement>("#workflow-node-type")?.value??"wait";const labels:Record<string,[string,string]>={wait:["Wait","Hold until the next scheduled step"],linkedin_manual:["LinkedIn manual touch","Review the public profile and perform this action manually"],email_draft:["Email draft","Draft only; Gmail is not connected"],crm_update:["CRM update","Requires explicit human confirmation"],human_approval:["Human review","Pause until a person approves"]};const [title,description]=labels[kind]??labels.wait;const node:WorkflowNode={id:crypto.randomUUID(),kind,title,description,status:"ready"};const position=Math.max(0,workflow.nodes.length-1);workflow.nodes.splice(position,0,node);rebuildGraphEdges(workflow);try{await persistWorkflowGraph(a,workflow);workflowGraphs.set(a.id,workflow);review(app)}catch(error){inputError=error instanceof Error?error.message:"Could not save workflow node.";review(app)}});
+ let draggedWorkflowNode="";const canvas=document.querySelector<HTMLDivElement>("#workflow-canvas");canvas?.addEventListener("dragstart",event=>{const node=(event.target as HTMLElement).closest<HTMLElement>("[data-workflow-node]");draggedWorkflowNode=node?.dataset.workflowNode??"";if(event.dataTransfer)event.dataTransfer.setData("text/plain",draggedWorkflowNode)});canvas?.addEventListener("dragover",event=>event.preventDefault());canvas?.addEventListener("drop",async event=>{event.preventDefault();const target=(event.target as HTMLElement).closest<HTMLElement>("[data-workflow-node]")?.dataset.workflowNode;const workflow=workflowGraphs.get(a.id);if(!workflow||!draggedWorkflowNode||!target||target===draggedWorkflowNode)return;const from=workflow.nodes.findIndex(node=>node.id===draggedWorkflowNode),to=workflow.nodes.findIndex(node=>node.id===target);if(from<0||to<0)return;const [node]=workflow.nodes.splice(from,1);workflow.nodes.splice(to,0,node);rebuildGraphEdges(workflow);try{await persistWorkflowGraph(a,workflow);workflowGraphs.set(a.id,workflow);review(app)}catch(error){actionStatus=error instanceof Error?error.message:"Could not save workflow layout.";review(app)}});
+ document.querySelectorAll<HTMLButtonElement>("[data-remove-workflow-node]").forEach(button=>button.addEventListener("click",async()=>{const workflow=workflowGraphs.get(a.id);if(!workflow)return;workflow.nodes=workflow.nodes.filter(node=>node.id!==button.dataset.removeWorkflowNode);rebuildGraphEdges(workflow);try{await persistWorkflowGraph(a,workflow);workflowGraphs.set(a.id,workflow);review(app)}catch(error){actionStatus=error instanceof Error?error.message:"Could not remove workflow node.";review(app)}}));
+ if(!workflowLoads.has(a.id))void loadWorkflowGraph(a,()=>review(app));
+ document.querySelector<HTMLButtonElement>("#approve-sequence")?.addEventListener("click",()=>{const r=sequence?.accountId===a.id?sequence.result:undefined;if(!r)return;const at=stamp(),sid=id("sequence");data.sequences=data.sequences.filter(x=>x.accountId!==a.id);saved={id:sid,accountId:a.id,status:"approved",rationale:r.brief,createdAt:at,approvedAt:at,auditHistory:[{id:id("audit"),action:"approved",actor:"user",at,summary:"Approved for workflow tracking; no message sent"}],steps:r.steps.map((s,i)=>({id:`${sid}_${i}`,sequenceId:sid,channel:s.channel,delayDays:s.delayDays,subject:s.subject,body:s.body,status:"approved",source:{type:r.mode==="gemini"?"ai":"user",label:"Gemini generated · Zod validated"}}))};data.sequences.push(saved);data.activities.push({id:id("activity"),accountId:a.id,type:"sequence_approval",summary:"Outreach plan approved for workflow tracking. No message was sent.",source:{type:"user",label:"Human approval"},createdAt:at,auditHistory:[]});saveData(data);void finishCloudAgentRun(activeRunId,{status:"completed",provider:"gemini",output:{approved:true,sequenceId:sid}});if(graph){graph.status="approved";void persistWorkflowGraph(a,graph)}review(app)});
 }

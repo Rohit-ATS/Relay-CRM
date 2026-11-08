@@ -1,7 +1,18 @@
 import { createServer } from "node:http";
+import { loadEnv } from "vite";
 import { generateSequence } from "./sequence";
 import { runLeadResearch } from "./agents/lead-research";
 import { runCRMSteward } from "./agents/crm-steward";
+import { handleLinkedInIntegration } from "./linkedin-integration";
+import { authenticatedWorkspace } from "./auth";
+
+// Vite loads .env.local for the frontend, but this standalone API server is a
+// separate process. Load the same repo-root env files here without exposing
+// their values to browser code or overriding variables already provided by
+// the shell/deployment environment.
+for (const [name, value] of Object.entries(loadEnv("development", process.cwd(), ""))) {
+  if (process.env[name] === undefined) process.env[name] = value;
+}
 
 const port = Number(process.env.RELAY_SERVER_PORT ?? 8787);
 async function readJson(request: AsyncIterable<Uint8Array>): Promise<unknown> {
@@ -16,6 +27,10 @@ function send(response: import("node:http").ServerResponse, status: number, payl
 
 createServer(async (request, response) => {
   const path = new URL(request.url ?? "/", `http://${request.headers.host ?? "localhost"}`).pathname;
+  if (path.startsWith("/api/integrations/linkedin")) {
+    await handleLinkedInIntegration(request, response, path);
+    return;
+  }
   if (request.method === "GET" && path === "/api/integrations/status") {
     send(response, 200, {
       gemini: Boolean(process.env.GEMINI_API_KEY),
@@ -29,6 +44,8 @@ createServer(async (request, response) => {
     return;
   }
   try {
+    const workspace = await authenticatedWorkspace(request);
+    if (!workspace) { send(response, 401, { error: "Sign in to an authorized Relay workspace before running agents." }); return; }
     const body = await readJson(request);
     const result = path === "/api/sequence"
       ? await generateSequence(body)
