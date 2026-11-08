@@ -37,6 +37,9 @@ services:
         value: https://relay-crm-api.onrender.com
     routes:
       - type: rewrite
+        source: /docs
+        destination: /docs/index.html
+      - type: rewrite
         source: /docs/*
         destination: /docs/index.html
       - type: rewrite
