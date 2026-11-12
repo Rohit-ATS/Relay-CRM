@@ -1720,4 +1720,33 @@ tbody tr:hover {
   }
 }
 
+.autonomous-panel {
+  margin: 22px 0;
+  border-color: #f3d2c3;
+  background: linear-gradient(135deg, #fff 0%, #fff9f5 100%);
+}
+.autonomous-run-list { display: grid; gap: 12px; }
+.autonomous-run {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  padding: 16px 18px;
+  border: 1px solid #e8e3df;
+  border-radius: 16px;
+  background: #fff;
+}
+.autonomous-run h3 { margin: 8px 0 4px; font-size: 1rem; }
+.autonomous-run p { margin: 0; color: #68778c; font-size: .92rem; }
+.autonomous-run.running { border-color: #fdba74; }
+.autonomous-run.failed { border-color: #fecaca; background: #fff8f7; }
+.autonomous-run.awaiting_approval { border-color: #bbf7d0; }
+.autonomous-run .actions { flex-shrink: 0; }
+.autonomous-panel .source-chip { white-space: nowrap; }
+@media (max-width: 760px) {
+  .autonomous-run { align-items: flex-start; flex-direction: column; }
+  .autonomous-run .actions { width: 100%; flex-wrap: wrap; }
+  .autonomous-run .actions > * { flex: 1; text-align: center; }
+}
+
 

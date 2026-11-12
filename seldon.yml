@@ -8,9 +8,9 @@ testCases:
     url: /Relay-CRM/workspace
     steps:
       - Open the Relay workspace route.
-      - If signed out, verify the email and password sign-in form and AUTH REQUIRED state; do not sign up or enter credentials. Confirm no CRM records are exposed.
+      - If signed out, verify a usable email/password sign-in form is present; do not sign up or enter credentials. If the page instead shows SUPABASE REQUIRED, missing VITE environment variables, or Settings content under the Dashboard route, record that as a failure and stop.
       - If already signed in, verify the Dashboard heading, pipeline/account/approval/handoff metrics, and that visible records are workspace records rather than sample or demo data.
-    criteria: The dashboard either securely gates signed-out visitors without exposing CRM records, or shows real signed-in workspace data and live status without demo records.
+    criteria: A signed-out visitor can reach an email/password sign-in form, or an authorized user sees the real workspace dashboard; missing Supabase configuration or Settings rendered at the Dashboard route is a failure.
   - id: ai-research-real-lead
     name: Grounded AI research creates a reviewable workflow
     url: /Relay-CRM/workspace

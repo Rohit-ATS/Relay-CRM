@@ -24,6 +24,26 @@ services:
         value: https://relay-crm-api.onrender.com
 
   - type: web
+    name: relay-crm-ai
+    runtime: node
+    rootDir: .
+    buildCommand: npm ci --include=dev
+    startCommand: npm run server
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: CORS_ORIGINS
+        value: https://rohit-ats.github.io,https://relay-crm-5y4c.onrender.com
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_PUBLISHABLE_KEY
+        sync: false
+      - key: SUPABASE_SECRET_KEY
+        sync: false
+      - key: GEMINI_API_KEY
+        sync: false
+
+  - type: web
     name: relay-crm-app
     runtime: static
     buildCommand: npm run build:render
@@ -35,6 +55,12 @@ services:
         value: ""
       - key: NEXT_PUBLIC_API_BASE_URL
         value: https://relay-crm-api.onrender.com
+      - key: VITE_API_URL
+        value: https://relay-crm-ai.onrender.com
+      - key: VITE_SUPABASE_URL
+        sync: false
+      - key: VITE_SUPABASE_PUBLISHABLE_KEY
+        sync: false
     routes:
       - type: rewrite
         source: /docs

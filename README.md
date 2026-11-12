@@ -222,7 +222,7 @@ The backend uses the provider settings in `backend/.env.example`; if provider cr
 
 The existing landing page is preserved. The Vite CRM requires Supabase email and password authentication; there is no local demo workspace and the CRM starts empty until real records are imported. The workspace uses Supabase Postgres as its source of truth and Realtime subscriptions for account, contact, deal, activity, sequence, approval, handoff, and agent-run changes.
 
-Import a real CSV in **Accounts**. Add `linkedin_url` to the header to retain a supplied public profile URL. In **Automations**, Relay runs Google Search grounded research and then creates an editable, Zod-validated outreach draft. The research facts carry source links. Sequence approval records a human decision only; it does not send a message. A reply or call note is analyzed by the CRM Steward and CRM changes are applied only after confirmation.
+Import a real CSV in **Accounts**. After you confirm the import, Relay automatically starts Google Search grounded research for each lead, prepares an editable, Zod-validated outreach workflow, and shows live run status on the dashboard. Add `linkedin_url` to the header to retain a supplied public profile URL. Research facts carry source links. Drafts remain pending human approval; Relay does not send a message or apply CRM changes automatically. A reply or call note is analyzed by the CRM Steward and CRM changes are applied only after confirmation.
 
 The Workflows page displays research → personalized plan → approval → delivery readiness on a dotted-grid canvas. Users can add/reorder steps; graphs are workspace-scoped and synced through Realtime. Autonomous outbound execution is not enabled.
 
@@ -237,6 +237,7 @@ CRM RLS requires a signed-in user with workspace membership. The browser uses on
 3. Apply migrations with `npx supabase link --project-ref <your-project-ref>` and `npx supabase db push --linked`. Migrations `202611070005_realtime_contacts_and_sources.sql` through `202611070007_sequence_channel_types.sql` have been applied to Relay's linked project.
 4. In Supabase **Authentication → URL Configuration**, add `http://localhost:5173/settings` to Redirect URLs. Turn on email/password auth. If email confirmations are enabled, confirm your account before password sign-in.
 5. Run `npm run dev` and `npm run server` in separate terminals from the repo root. The TypeScript server loads root `.env.local` itself. Restart both after editing variables.
+6. For the deployed app, deploy the `relay-crm-ai` Node service from `render.yaml` and configure its server-side Supabase and Gemini secrets in Render. In GitHub repository **Settings → Secrets and variables → Actions → Variables**, set `VITE_SUPABASE_URL` and `VITE_SUPABASE_PUBLISHABLE_KEY`; these are injected into the GitHub Pages build so the browser can authenticate with Supabase. Keep Gemini and Supabase secret keys server-side.
 
 Google Search grounding provides sourced public web research, not privileged access to LinkedIn profiles. An imported person's name or URL is a search query; the app must treat identity matches and LinkedIn activity as uncertain unless sources directly support them.
 
